@@ -12,7 +12,7 @@
 window.OTO_TAKIP_CONFIG = {
   // Önceki sürümde app.js içine gömülü olan dağıtım adresi. Yeni code.gs aynı dağıtıma
   // "yeni sürüm" olarak yüklenirse adres değişmez (bkz. README > Sunucu kurulumu).
-  apiUrl: "https://script.google.com/macros/s/AKfycbwunsbhHl5otYEVuP6VO9xzHkLt7pu9giSJg4MUBUFOIPrSq8zVyEBxT7POUkLwK-QU/exec",
+  apiUrl: "https://script.google.com/macros/s/AKfycbyEjKLeIdZH0IUuANWubS6seveDg83t2lUb7O4Kahw_qBl-hynETiIe_zHLzg8H1UOcEg/exec",
   productName: "OtoTakip",
   supportContact: ""
 };
