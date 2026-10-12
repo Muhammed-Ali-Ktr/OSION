@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 140" width="240" height="140">
+  <ellipse cx="120" cy="70" rx="110" ry="60" fill="url(#fordGrad)" stroke="#ffffff" stroke-width="5"/>
+  <ellipse cx="120" cy="70" rx="103" ry="53" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+  <defs>
+    <linearGradient id="fordGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1955a6"/>
+      <stop offset="100%" stop-color="#0b2347"/>
+    </linearGradient>
+  </defs>
+  <text x="120" y="86" font-family="'Brush Script MT', 'Segoe Script', cursive, sans-serif" font-size="64" font-weight="bold" font-style="italic" fill="#ffffff" text-anchor="middle">Ford</text>
+</svg>

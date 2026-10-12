@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="240" height="100">
+  <g fill="none" stroke="#ea0029" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter">
+    <!-- K -->
+    <path d="M 30 20 L 30 80 M 65 20 L 30 50 L 70 80"/>
+    <!-- I -->
+    <path d="M 100 20 L 100 80"/>
+    <!-- A -->
+    <path d="M 130 80 L 165 20 L 200 80 M 145 60 L 185 60"/>
+  </g>
+</svg>

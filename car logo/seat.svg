@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <g fill="none" stroke="url(#seatGrad)" stroke-width="16" stroke-linecap="square">
+    <path d="M 50 50 L 150 50 L 80 100 L 150 150 L 50 150"/>
+    <line x1="90" y1="75" x2="110" y2="75" stroke="#d32f2f" stroke-width="8"/>
+    <line x1="90" y1="125" x2="110" y2="125" stroke="#d32f2f" stroke-width="8"/>
+  </g>
+  <defs>
+    <linearGradient id="seatGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e0e0e0"/>
+      <stop offset="100%" stop-color="#757575"/>
+    </linearGradient>
+  </defs>
+</svg>
