@@ -1,12 +1,16 @@
 {
-  "name": "ototakip",
-  "version": "2.0.0",
+  "name": "osion",
+  "version": "3.0.0",
   "private": true,
-  "description": "Oto servisleri için çok işletmeli müşteri, araç ve servis takip uygulaması (Google Apps Script + Google Sheets).",
+  "description": "Oto servisleri için çok işletmeli müşteri, araç ve servis takip uygulaması (Supabase).",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test \"tests/**/*.test.mjs\"",
     "dev": "node tools/dev-server.js",
-    "dev:legacy": "node tools/dev-server.js --reset --seed-legacy"
+    "build": "node tools/build.js",
+    "preview": "node tools/build.js && node tools/dev-server.js --dist --port 8788"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.2.17"
   },
   "engines": {
     "node": ">=18"

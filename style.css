@@ -610,7 +610,7 @@ a:hover {
 /* Dashboard Üst Özet Bento Grid */
 .bento-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -726,7 +726,7 @@ a:hover {
 
 .debtor-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -1505,7 +1505,7 @@ textarea.form-control {
 /* Müşteriler & Araçlar Yeni Sayfaları */
 .only-customers-grid, .only-vehicles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 16px;
   margin-top: 16px;
 }
@@ -1637,7 +1637,7 @@ textarea.form-control {
 /* Kayıt Sayfası Hızlı Kartları */
 .registration-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -3286,7 +3286,7 @@ body:not(.role-owner) .owner-only {
 
 .detail-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -3408,4 +3408,134 @@ body.is-offline #btnSaveService {
   .copy-row code {
     flex-basis: 100%;
   }
+}
+
+/* ==========================================================================
+   MOBİL UYUM DÜZELTMELERİ
+   ========================================================================== */
+
+/* Flex öğesi varsayılan olarak içeriğinden dar olamaz (min-width: auto); geniş bir içerik
+   ana alanı ekrandan taşırıyor, body'deki overflow-x: hidden da taşan kısmı kesiyordu. */
+.main-content {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  /* iOS, 16px'ten küçük yazı tipli alanlara odaklanınca sayfayı yakınlaştırır. */
+  .form-control,
+  input.form-control,
+  select.form-control,
+  textarea.form-control {
+    font-size: 16px;
+  }
+
+  /* Servis adımları kaydırma gerektirmeden ekrana sığar: numara üstte, başlık altta. */
+  .step-progress-bar {
+    overflow-x: visible;
+    padding: 10px 8px;
+    gap: 4px;
+  }
+
+  .step-item {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+
+  .step-item span {
+    max-width: none;
+    font-size: 11px;
+  }
+
+  .step-divider {
+    flex: 0 0 12px;
+    margin: 0;
+    align-self: flex-start;
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Ayar sekmeleri yatay kaydırma yerine iki sütuna dizilir; hepsi görünür. */
+  .settings-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    border-bottom: none;
+    overflow-x: visible;
+  }
+
+  .settings-tab {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    margin-bottom: 0;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .settings-tab.active {
+    border-color: var(--accent);
+  }
+
+  .modal-backdrop {
+    padding: 12px 8px;
+  }
+
+  .modal-content {
+    padding: 18px 14px;
+  }
+}
+
+/* ==========================================================================
+   E-POSTA (araç sahiplerine)
+   ========================================================================== */
+.mail-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mail-help a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.mail-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ==========================================================================
+   KULLANIM KOŞULLARI ONAYI
+   ========================================================================== */
+.terms-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.terms-check input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.terms-check a,
+.auth-legal-links a {
+  color: var(--accent);
+}
+
+.auth-legal-links {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 16px 0 0;
 }

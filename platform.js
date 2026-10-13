@@ -1,29 +1,34 @@
 /**
- * OtoTakip - Platform katmanı
- * Oturum yönetimi, API istemcisi, giriş/kayıt/davet ekranları, ilk kurulum sihirbazı,
+ * OSION - Platform katmanı
+ * Oturum yönetimi, Supabase veri erişimi, giriş/kayıt/davet ekranları, ilk kurulum sihirbazı,
  * işletme ayarları ve işletme ayarlarına göre biçimlendirme (para birimi, tarih, marka).
  *
  * app.js'ten önce yüklenir. app.js'teki render fonksiyonları (renderAll, switchView vb.)
  * yalnızca çalışma anında çağrılır.
  *
  * Güvenlik notu: İstemcideki rol kontrolleri yalnızca arayüz kolaylığıdır.
- * Asıl yetkilendirme ve işletme veri ayrımı sunucuda (code.gs) yapılır.
+ * Asıl yetkilendirme ve işletme veri ayrımı veritabanında (RLS, supabase/migrations) yapılır.
  */
 
-const APP_CONFIG = Object.assign({ apiUrl: "", productName: "OtoTakip", supportContact: "" }, window.OTO_TAKIP_CONFIG || {});
-const SESSION_KEY = "ototakip_session";
-const CACHE_PREFIX = "ototakip_cache_";
-const NOTICE_KEY = "ototakip_notice";
+const APP_CONFIG = Object.assign({ supabaseUrl: "", supabaseAnonKey: "", productName: "OSION", supportContact: "" }, window.OSION_CONFIG || {});
+const ACTIVE_TENANT_KEY = "osion_active_tenant";
+const CACHE_PREFIX = "osion_cache_";
+const NOTICE_KEY = "osion_notice";
+// Kullanım Koşulları / Aydınlatma Metni değişince güncellenir; kabul edilen sürüm kullanıcı kaydında saklanır.
+const TERMS_VERSION = "2026-10";
 
 const platform = {
-  token: null,
   user: null,
   role: null,
   tenant: null,
   plan: null,
   tenants: [],
+  mail: null,
   offline: false
 };
+
+/** Supabase istemcisi; bootApp içinde yapılandırma doğrulandıktan sonra oluşturulur. */
+let sb = null;
 
 const ROLE_LABELS = { owner: "İşletme Sahibi", admin: "Yönetici", staff: "Çalışan" };
 const SUBSCRIPTION_LABELS = { trialing: "Deneme sürümü", active: "Aktif", past_due: "Ödeme gecikmiş", canceled: "İptal edildi" };
@@ -45,6 +50,12 @@ const DATE_FORMAT_OPTIONS = [
   { value: "DD/MM/YYYY", label: "GG/AA/YYYY — 31/12/2026" },
   { value: "YYYY-MM-DD", label: "YYYY-AA-GG — 2026-12-31" },
   { value: "MM/DD/YYYY", label: "AA/GG/YYYY — 12/31/2026" }
+];
+
+// Veritabanındaki usta anahtarları (supabase/migrations: private.technician_keys ile aynı sıra).
+const TECHNICIAN_KEYS = [
+  "mechanic", "electrician", "boyaci", "cikmaci", "egzozcu", "frenci", "kapakci", "kaportaci",
+  "kurtarici", "parcaci", "pompaci", "tornaci", "turbocu", "tupcu", "yagci", "yikamaci"
 ];
 
 // ==========================================================================
@@ -102,7 +113,109 @@ function clearTenantCaches() {
 }
 
 // ==========================================================================
+// VERİ DÖNÜŞÜMÜ (veritabanı snake_case <-> uygulama camelCase)
+// ==========================================================================
+function mapCustomer(r) {
+  return {
+    id: r.id, firstName: r.first_name, lastName: r.last_name, phone: r.phone, email: r.email || "",
+    reference: r.reference, notes: r.notes, createdAt: r.created_at, updatedAt: r.updated_at
+  };
+}
+
+function mapVehicle(r) {
+  return {
+    id: r.id, customerId: r.customer_id, brand: r.brand, model: r.model, plate: r.plate,
+    chassisNo: r.chassis_no, entryDate: r.entry_date, notes: r.notes, createdAt: r.created_at, updatedAt: r.updated_at
+  };
+}
+
+function mapServiceRecord(r) {
+  const out = {
+    id: r.id, vehicleId: r.vehicle_id, entryKm: Number(r.entry_km), recordDate: r.record_date,
+    generalSummary: r.general_summary, paymentStatus: r.payment_status,
+    totalAmount: Number(r.total_amount), paidAmount: Number(r.paid_amount), remainingAmount: Number(r.remaining_amount),
+    createdAt: r.created_at, updatedAt: r.updated_at
+  };
+  const fees = r.fees || {};
+  const notes = r.notes || {};
+  TECHNICIAN_KEYS.forEach((k) => {
+    out[`${k}Fee`] = Number(fees[k]) || 0;
+    out[`${k}Note`] = notes[k] || "";
+  });
+  return out;
+}
+
+function mapTenant(r) {
+  return {
+    id: r.id, name: r.name || "", phone: r.phone || "", address: r.address || "", logoDataUrl: r.logo_data_url || "",
+    currency: r.currency, locale: r.locale, dateFormat: r.date_format,
+    legalName: r.legal_name || "", taxOffice: r.tax_office || "", taxNumber: r.tax_number || "",
+    setupCompleted: !!r.setup_completed, status: r.status, createdAt: r.created_at
+  };
+}
+
+function customerRow(p) {
+  return {
+    first_name: p.firstName, last_name: p.lastName, phone: p.phone, email: p.email || "",
+    reference: p.reference || "", notes: p.notes || ""
+  };
+}
+
+function vehicleRow(p) {
+  return {
+    customer_id: p.customerId, brand: p.brand, model: p.model, plate: p.plate,
+    chassis_no: p.chassisNo || "", entry_date: p.entryDate || null, notes: p.notes || ""
+  };
+}
+
+// Toplam, ödenen ve kalan tutarlar veritabanında hesaplanır; istemci yalnızca kalemleri gönderir.
+function serviceRecordRow(p) {
+  const fees = {};
+  const notes = {};
+  TECHNICIAN_KEYS.forEach((k) => {
+    fees[k] = Number(p[`${k}Fee`]) || 0;
+    notes[k] = p[`${k}Note`] || "";
+  });
+  return {
+    vehicle_id: p.vehicleId, entry_km: p.entryKm, record_date: p.recordDate,
+    general_summary: p.generalSummary || "", payment_status: p.paymentStatus || "Ödenmedi",
+    paid_amount: Number(p.paidAmount) || 0, fees, notes
+  };
+}
+
+function tenantProfileRow(p) {
+  return {
+    name: p.name, phone: p.phone, address: p.address, logo_data_url: p.logoDataUrl || "",
+    currency: p.currency, locale: p.locale, date_format: p.dateFormat,
+    legal_name: p.legalName || "", tax_office: p.taxOffice || "", tax_number: p.taxNumber || ""
+  };
+}
+
+function mapTenantData(data) {
+  return {
+    customers: (data.customers || []).map(mapCustomer),
+    vehicles: (data.vehicles || []).map(mapVehicle),
+    serviceRecords: (data.serviceRecords || []).map(mapServiceRecord)
+  };
+}
+
+function mapBootstrap(b) {
+  return {
+    user: b.user,
+    tenants: b.tenants || [],
+    needsTenantChoice: !!b.needsTenantChoice,
+    noTenant: !!b.noTenant,
+    role: b.role || null,
+    tenant: b.tenant ? mapTenant(b.tenant) : null,
+    plan: b.plan || null,
+    data: b.data ? mapTenantData(b.data) : null
+  };
+}
+
+// ==========================================================================
 // API İSTEMCİSİ
+// app.js ve ayar ekranları işlemleri isimleriyle çağırır (apiCall("addCustomer", ...)).
+// Her işlem tek bir Supabase isteğidir; yetki ve işletme ayrımını veritabanı denetler.
 // ==========================================================================
 class ApiError extends Error {
   constructor(message, code) {
@@ -111,39 +224,234 @@ class ApiError extends Error {
   }
 }
 
-async function apiCall(action, payload = {}, { auth = true } = {}) {
-  if (!APP_CONFIG.apiUrl) throw new ApiError("Sunucu adresi yapılandırılmamış.", "CONFIG");
-  let response;
-  try {
-    // text/plain gövde, Apps Script için CORS ön kontrolü gerektirmeyen "basit istek"tir.
-    // Oturum anahtarı URL'de değil, istek gövdesinde gönderilir.
-    response = await fetch(APP_CONFIG.apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, payload, token: auth ? platform.token : undefined }),
-      redirect: "follow",
-      cache: "no-store"
-    });
-  } catch {
-    throw new ApiError("Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.", "NETWORK");
-  }
-  if (!response.ok) throw new ApiError(`Sunucu yanıt vermedi (HTTP ${response.status}).`, "NETWORK");
+const NETWORK_MESSAGE = "Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.";
 
+function isNetworkError(error) {
+  // Supabase Auth, sunucu tarafı zaman aşımlarını (ör. e-posta sunucusu yanıt vermeyince 504)
+  // de "AuthRetryableFetchError" olarak bildirir; bunlar kullanıcının bağlantı sorunu değildir.
+  if (error && Number(error.status) >= 500) return false;
+  const text = `${error && error.name} ${error && error.message}`;
+  return /Failed to fetch|NetworkError|Load failed|fetch failed|AuthRetryableFetchError|network/i.test(text);
+}
+
+/** Supabase / PostgREST hatasını kullanıcıya gösterilebilir ApiError'a çevirir. */
+function toApiError(error) {
+  if (error instanceof ApiError) return error;
+  if (!error) return new ApiError("İşlem tamamlanamadı.", "UNKNOWN");
+  // Veritabanı fonksiyonlarımız hata kodunu "hint" alanında, Türkçe mesajı "message" alanında döndürür.
+  if (error.hint && /^[A-Z_]+$/.test(error.hint)) return new ApiError(error.message, error.hint);
+  if (isNetworkError(error)) return new ApiError(NETWORK_MESSAGE, "NETWORK");
+  switch (error.code) {
+    case "42501": return new ApiError("Bu işlem için yetkiniz bulunmuyor.", "FORBIDDEN");
+    case "23503": return new ApiError("İlişkili kayıt bulunamadı. Sayfayı yenileyip tekrar deneyin.", "NOT_FOUND");
+    case "23502": case "23514": case "22001": case "22003": case "22007": case "22008": case "22P02":
+      return new ApiError("Girilen bilgilerden biri geçersiz. Alanları kontrol edip tekrar deneyin.", "VALIDATION");
+    case "PGRST116": return new ApiError("Kayıt bulunamadı veya bu işlem için yetkiniz yok.", "NOT_FOUND");
+    case "PGRST301": case "PGRST303":
+      return new ApiError("Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.", "AUTH_REQUIRED");
+    default: break;
+  }
+  if (error.status === 401 || /JWT|refresh token/i.test(String(error.message))) {
+    return new ApiError("Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.", "AUTH_REQUIRED");
+  }
+  console.error("[OSION] Beklenmeyen hata:", error);
+  return new ApiError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.", "UNKNOWN");
+}
+
+/** Supabase Auth hatalarını Türkçe mesaja çevirir. */
+function authErrorMessage(error) {
+  if (isNetworkError(error)) return NETWORK_MESSAGE;
+  const code = error && (error.code || "");
+  const msg = String(error && error.message || "");
+  if (code === "invalid_credentials" || /Invalid login credentials/i.test(msg)) return "E-posta veya şifre hatalı.";
+  if (code === "email_not_confirmed" || /Email not confirmed/i.test(msg)) return "E-posta adresiniz henüz doğrulanmadı. Gelen kutunuzdaki doğrulama bağlantısına tıklayın.";
+  if (code === "user_already_exists" || /already registered/i.test(msg)) return "Bu e-posta adresiyle kayıtlı bir hesap zaten var. Lütfen giriş yapın.";
+  if (code === "weak_password" || /password/i.test(msg) && /least|weak|short/i.test(msg)) return "Şifre yeterince güçlü değil. En az 8 karakter, harf ve rakam kullanın.";
+  if (code === "same_password") return "Yeni şifre eskisiyle aynı olamaz.";
+  if (/rate limit|too many|security purposes/i.test(msg) || code === "over_email_send_rate_limit" || code === "over_request_rate_limit") {
+    return "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.";
+  }
+  if (code === "signup_disabled" || /Signups not allowed/i.test(msg)) return "Yeni hesap açılışı şu anda kapalı. Hizmet sağlayıcınızla iletişime geçin.";
+  if (code === "otp_expired" || /expired/i.test(msg)) return "Bağlantının süresi dolmuş. Lütfen yeni bir bağlantı isteyin.";
+  if (/sending .*email|email .*send|smtp/i.test(msg) || Number(error && error.status) >= 500) {
+    return "E-posta şu anda gönderilemedi (e-posta sunucusu yanıt vermedi). Lütfen birkaç dakika sonra tekrar deneyin; sorun sürerse hizmet sağlayıcınıza bildirin.";
+  }
+  console.error("[OSION] Kimlik doğrulama hatası:", error);
+  return "İşlem tamamlanamadı. Lütfen tekrar deneyin.";
+}
+
+/** { data, error } döndüren Supabase çağrısını bekler; hata varsa ApiError fırlatır. */
+async function run(promise) {
   let result;
   try {
-    result = await response.json();
-  } catch {
-    throw new ApiError("Sunucudan beklenmeyen bir yanıt alındı. Sunucu sürümünün güncel olduğundan emin olun.", "NETWORK");
+    result = await promise;
+  } catch (err) {
+    throw toApiError(err);
   }
-  if (!result || result.success !== true) {
-    const err = new ApiError((result && result.error) || "İşlem tamamlanamadı.", (result && result.code) || "UNKNOWN");
-    if (auth && err.code === "AUTH_REQUIRED" && action !== "logout") {
+  if (result.error) throw toApiError(result.error);
+  return result.data;
+}
+
+const rpc = (fn, args) => run(sb.rpc(fn, args));
+
+function requireTenantId() {
+  if (!platform.tenant) throw new ApiError("Aktif işletme bulunamadı. Sayfayı yenileyin.", "AUTH_REQUIRED");
+  return platform.tenant.id;
+}
+
+function findState(list, id, label) {
+  const item = state[list].find((x) => x.id === id);
+  if (!item) throw new ApiError(`${label} bulunamadı. Sayfayı yenileyip tekrar deneyin.`, "NOT_FOUND");
+  return item;
+}
+
+async function insertRow(table, row, mapper) {
+  return mapper(await run(sb.from(table).insert({ ...row, tenant_id: requireTenantId() }).select().single()));
+}
+
+async function updateRow(table, id, row, mapper) {
+  return mapper(await run(sb.from(table).update(row).eq("id", id).select().single()));
+}
+
+// RLS bir silmeyi engellediğinde PostgREST hata değil boş sonuç döndürür; bunu yetki hatasına çeviririz.
+async function deleteRow(table, id) {
+  const rows = await run(sb.from(table).delete().eq("id", id).select("id"));
+  if (!rows || !rows.length) throw new ApiError("Kayıt silinemedi: kayıt bulunamadı veya bu işlem için yetkiniz yok.", "FORBIDDEN");
+  return { id };
+}
+
+/** Oturum sahibinin şifresini yeniden doğrular (hassas işlemler öncesi). */
+async function verifyCurrentPassword(password) {
+  const { error } = await sb.auth.signInWithPassword({ email: platform.user.email, password: password || "" });
+  if (error) {
+    throw new ApiError(isNetworkError(error) ? NETWORK_MESSAGE : "Şifreniz hatalı.", isNetworkError(error) ? "NETWORK" : "INVALID_CREDENTIALS");
+  }
+}
+
+const API_ACTIONS = {
+  bootstrap: async () => mapBootstrap(await rpc("app_bootstrap", { p_tenant: storageGet(ACTIVE_TENANT_KEY) || null })),
+  getData: async () => {
+    const b = mapBootstrap(await rpc("app_bootstrap", { p_tenant: requireTenantId() }));
+    if (b.tenant) {
+      platform.tenant = b.tenant;
+      platform.plan = b.plan;
+      platform.role = b.role;
+    }
+    return b.data || { customers: [], vehicles: [], serviceRecords: [] };
+  },
+
+  addCustomer: (p) => insertRow("customers", customerRow(p), mapCustomer),
+  updateCustomer: (p) => updateRow("customers", p.id, customerRow({ ...findState("customers", p.id, "Müşteri"), ...p }), mapCustomer),
+  deleteCustomer: (p) => deleteRow("customers", p.id),
+  addVehicle: (p) => insertRow("vehicles", vehicleRow(p), mapVehicle),
+  updateVehicle: (p) => updateRow("vehicles", p.id, vehicleRow({ ...findState("vehicles", p.id, "Araç"), ...p }), mapVehicle),
+  deleteVehicle: (p) => deleteRow("vehicles", p.id),
+  addServiceRecord: (p) => insertRow("service_records", serviceRecordRow(p), mapServiceRecord),
+  updateServiceRecord: (p) => updateRow("service_records", p.id,
+    serviceRecordRow({ ...findState("serviceRecords", p.id, "Servis kaydı"), ...p }), mapServiceRecord),
+  deleteServiceRecord: (p) => deleteRow("service_records", p.id),
+
+  saveBusinessProfile: async (p) => {
+    await run(sb.from("tenants").update(tenantProfileRow(p)).eq("id", requireTenantId()).select("id").single());
+    return API_ACTIONS.bootstrap();
+  },
+  listMembers: () => rpc("list_members", { p_tenant: requireTenantId() }),
+  createInvite: (p) => rpc("create_invite", { p_tenant: requireTenantId(), p_email: p.email, p_role: p.role }),
+  revokeInvite: (p) => rpc("revoke_invite", { p_tenant: requireTenantId(), p_id: p.id }),
+  updateMemberRole: (p) => rpc("update_member_role", { p_tenant: requireTenantId(), p_membership: p.membershipId, p_role: p.role }),
+  removeMember: (p) => rpc("remove_member", { p_tenant: requireTenantId(), p_membership: p.membershipId }),
+  exportTenantData: async () => {
+    const b = await API_ACTIONS.bootstrap();
+    return { exportedAt: new Date().toISOString(), tenant: b.tenant, data: b.data };
+  },
+  closeTenant: async (p) => {
+    await verifyCurrentPassword(p.password);
+    return rpc("close_tenant", { p_tenant: requireTenantId(), p_confirm_name: p.confirmName });
+  },
+  mailStatus: () => rpc("mail_status", { p_tenant: requireTenantId() }),
+  saveMailSettings: (p) => rpc("save_mail_settings", {
+    p_tenant: requireTenantId(), p_provider: p.provider, p_host: p.host || null,
+    p_user: p.user, p_password: p.password || "", p_from_name: p.fromName || ""
+  }),
+  deleteMailSettings: () => rpc("delete_mail_settings", { p_tenant: requireTenantId() }),
+  sendMail: async (p) => {
+    // Gönderim, işletmenin SMTP şifresini çözebilen "send-mail" Edge Function'ında yapılır.
+    let result;
+    try {
+      result = await sb.functions.invoke("send-mail", { body: { ...p, tenantId: requireTenantId() } });
+    } catch (err) {
+      throw toApiError(err);
+    }
+    if (!result.error) return result.data;
+    const err = result.error;
+    if (err.context && typeof err.context.json === "function") {
+      let body = null;
+      try { body = await err.context.json(); } catch { /* gövde okunamadı */ }
+      if (body && body.error) throw new ApiError(body.error, body.code || "SEND_FAILED");
+      if (err.context.status === 401) throw new ApiError("Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.", "AUTH_REQUIRED");
+      if (err.context.status === 404) throw new ApiError("E-posta servisi henüz kurulmamış (send-mail). Hizmet sağlayıcınızla iletişime geçin.", "MAIL_NOT_CONFIGURED");
+    }
+    if (err.name === "FunctionsFetchError") throw new ApiError(NETWORK_MESSAGE, "NETWORK");
+    throw toApiError(err);
+  },
+  changePassword: async (p) => {
+    await verifyCurrentPassword(p.currentPassword);
+    const { error } = await sb.auth.updateUser({ password: p.newPassword });
+    if (error) throw new ApiError(authErrorMessage(error), isNetworkError(error) ? "NETWORK" : "VALIDATION");
+    // Diğer cihazlardaki oturumlar kapatılır; bu cihaz açık kalır.
+    try { await sb.auth.signOut({ scope: "others" }); } catch { /* yok say */ }
+    return { changed: true };
+  }
+};
+
+async function apiCall(action, payload = {}) {
+  const handler = API_ACTIONS[action];
+  if (!handler) throw new ApiError("Geçersiz işlem isteği.", "BAD_REQUEST");
+  try {
+    return await handler(payload);
+  } catch (error) {
+    const err = toApiError(error);
+    if (err.code === "AUTH_REQUIRED") {
       err.handled = true;
       handleSessionExpired(err.message);
     }
     throw err;
   }
-  return result.data;
+}
+
+/**
+ * Başarılı bir yazma işleminin sonucunu yerel duruma uygular.
+ * Böylece her kayıttan sonra tüm işletme verisini yeniden indirmeye gerek kalmaz.
+ */
+function applyLocalChange(action, payload, result) {
+  const upsert = (list, item) => {
+    const i = state[list].findIndex((x) => x.id === item.id);
+    if (i === -1) state[list].push(item);
+    else state[list][i] = item;
+  };
+  switch (action) {
+    case "addCustomer": case "updateCustomer": upsert("customers", result); break;
+    case "addVehicle": case "updateVehicle": upsert("vehicles", result); break;
+    case "addServiceRecord": case "updateServiceRecord": upsert("serviceRecords", result); break;
+    case "deleteServiceRecord":
+      state.serviceRecords = state.serviceRecords.filter((r) => r.id !== payload.id);
+      break;
+    case "deleteVehicle":
+      state.vehicles = state.vehicles.filter((v) => v.id !== payload.id);
+      state.serviceRecords = state.serviceRecords.filter((r) => r.vehicleId !== payload.id);
+      break;
+    case "deleteCustomer": {
+      // Veritabanı müşteriye bağlı araçları ve servis kayıtlarını da siler (ON DELETE CASCADE).
+      const vehicleIds = new Set(state.vehicles.filter((v) => v.customerId === payload.id).map((v) => v.id));
+      state.customers = state.customers.filter((c) => c.id !== payload.id);
+      state.vehicles = state.vehicles.filter((v) => !vehicleIds.has(v.id));
+      state.serviceRecords = state.serviceRecords.filter((r) => !vehicleIds.has(r.vehicleId));
+      break;
+    }
+    default: return false;
+  }
+  writeTenantCache();
+  return true;
 }
 
 function reportError(err) {
@@ -151,10 +459,10 @@ function reportError(err) {
   showToast((err && err.message) || "Beklenmeyen bir hata oluştu.", "error");
 }
 
-function handleSessionExpired(message) {
-  storageRemove(SESSION_KEY);
+async function handleSessionExpired(message) {
+  try { await sb.auth.signOut({ scope: "local" }); } catch { /* yok say */ }
   clearTenantCaches();
-  try { sessionStorage.setItem(NOTICE_KEY, message || "Oturumunuz sona erdi. Lütfen tekrar giriş yapın."); } catch { /* yok say */ }
+  try { sessionStorage.setItem(NOTICE_KEY, message || "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın."); } catch { /* yok say */ }
   // Sayfayı yeniden yükleyerek önceki işletmenin verisinin bellekte/ekranda kalmamasını garanti ederiz.
   window.location.reload();
 }
@@ -163,10 +471,7 @@ function handleSessionExpired(message) {
 // OTURUM VE VERİ ÖNBELLEĞİ
 // ==========================================================================
 function applySession(data) {
-  if (data.token) {
-    platform.token = data.token;
-    storageSet(SESSION_KEY, data.token);
-  }
+  if (data.tenant) storageSet(ACTIVE_TENANT_KEY, data.tenant.id);
   platform.user = data.user;
   platform.role = data.role;
   platform.tenant = data.tenant;
@@ -387,10 +692,10 @@ async function bootApp() {
   document.querySelectorAll("[data-product-name]").forEach((el) => { el.textContent = APP_CONFIG.productName; });
   document.title = APP_CONFIG.productName;
 
-  if (!APP_CONFIG.apiUrl) {
+  if (!APP_CONFIG.supabaseUrl || !APP_CONFIG.supabaseAnonKey || !window.supabase) {
     showNotice({
       title: "Sunucu bağlantısı yapılandırılmamış",
-      message: "config.js dosyasındaki apiUrl alanına Google Apps Script web uygulaması adresini girin. Kurulum adımları README.md dosyasındadır."
+      message: "config.js dosyasındaki supabaseUrl ve supabaseAnonKey alanlarını doldurun. Kurulum adımları README.md dosyasındadır."
     });
     return;
   }
@@ -401,28 +706,40 @@ async function bootApp() {
     sessionStorage.removeItem(NOTICE_KEY);
   } catch { /* yok say */ }
 
+  // E-posta bağlantılarından (doğrulama, şifre sıfırlama) dönüşte adres çubuğundaki bilgiler.
+  const hashParams = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+  const isRecovery = hashParams.get("type") === "recovery";
+  const linkError = hashParams.get("error_description") || hashParams.get("error");
   const inviteCode = readInviteCodeFromHash();
-  platform.token = storageGet(SESSION_KEY);
-  if (!platform.token) {
-    showAuth(inviteCode ? "invite" : "login", { message: notice, inviteCode });
+
+  sb = window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" }
+  });
+
+  const { data: sessionData, error: sessionError } = await sb.auth.getSession();
+  if (hashParams.has("access_token") || linkError) {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+  const session = sessionData && sessionData.session;
+
+  if (isRecovery && session) {
+    showAuth("newpass");
+    return;
+  }
+  if (!session) {
+    if (sessionError && isNetworkError(sessionError) && enterOfflineFromCache()) return;
+    const message = linkError
+      ? authErrorMessage({ message: linkError, code: hashParams.get("error_code") || "" })
+      : notice;
+    showAuth(inviteCode ? "invite" : "login", { message, inviteCode });
     return;
   }
 
   try {
-    applySession(await apiCall("bootstrap"));
-    routeAfterAuth();
+    handleBootstrap(await apiCall("bootstrap"));
   } catch (err) {
     if (err.handled) return;
-    if (err.code === "NETWORK") {
-      const cached = readLastTenantCache();
-      if (cached && cached.session && cached.session.tenant && cached.session.tenant.setupCompleted) {
-        applySession({ ...cached.session });
-        setTenantData(cached.data || {}, { fromCache: true });
-        enterApp({ offline: true });
-        showToast("Sunucuya ulaşılamadı. Son kaydedilen veriler salt okunur gösteriliyor.", "warning");
-        return;
-      }
-    }
+    if (err.code === "NETWORK" && enterOfflineFromCache()) return;
     showNotice({
       title: "Bağlantı kurulamadı",
       message: err.message,
@@ -432,6 +749,38 @@ async function bootApp() {
       ]
     });
   }
+}
+
+function enterOfflineFromCache() {
+  const cached = readLastTenantCache();
+  if (!cached || !cached.session || !cached.session.tenant || !cached.session.tenant.setupCompleted) return false;
+  applySession({ ...cached.session });
+  setTenantData(cached.data || {}, { fromCache: true });
+  enterApp({ offline: true });
+  showToast("Sunucuya ulaşılamadı. Son kaydedilen veriler salt okunur gösteriliyor.", "warning");
+  return true;
+}
+
+/** Açılış verisine göre işletme seçimi, bilgilendirme veya uygulamaya giriş. */
+function handleBootstrap(data) {
+  if (data.needsTenantChoice) {
+    showAuth("choose");
+    renderTenantChoices(data.tenants);
+    return;
+  }
+  if (!data.tenant) {
+    showNotice({
+      title: "Bağlı işletme bulunamadı",
+      message: "Bu hesaba bağlı aktif bir işletme yok. Bir işletmeye davet edildiyseniz davet kodunuzla katılabilirsiniz.",
+      actions: [
+        { label: "Davet Kodu Gir", onClick: () => showAuth("invite") },
+        { label: "Çıkış Yap", variant: "secondary", onClick: () => logout() }
+      ]
+    });
+    return;
+  }
+  applySession(data);
+  routeAfterAuth();
 }
 
 function readInviteCodeFromHash() {
@@ -469,13 +818,18 @@ function enterApp({ offline = false } = {}) {
   const target = state.currentView && document.getElementById(`view-${state.currentView}`) ? state.currentView : "dashboard";
   switchView(target);
   setSyncStatus(offline ? "offline" : "connected");
+  if (!offline) loadMailStatus();
+  if (!offline && platform.plan && platform.plan.canWrite === false) {
+    showToast("Deneme süreniz veya aboneliğiniz sona erdi. Kayıtlarınızı görüntüleyebilirsiniz; yeni kayıt için aboneliğinizi yenileyin.", "warning");
+  }
 }
 
 async function logout() {
-  if (platform.token && !platform.offline) {
-    try { await apiCall("logout"); } catch { /* oturum zaten geçersiz olabilir */ }
+  // "local": yalnızca bu cihazın oturumu kapanır; çevrimdışıyken de yerel oturum silinir.
+  if (sb) {
+    try { await sb.auth.signOut({ scope: "local" }); } catch { /* oturum zaten geçersiz olabilir */ }
   }
-  storageRemove(SESSION_KEY);
+  storageRemove(ACTIVE_TENANT_KEY);
   clearTenantCaches();
   window.location.reload();
 }
@@ -533,8 +887,6 @@ function renderLogoInto(el, dataUrl, name) {
 // ==========================================================================
 // GİRİŞ / KAYIT / DAVET
 // ==========================================================================
-let pendingLogin = null;
-
 function showAuth(tab = "login", { message, inviteCode } = {}) {
   showAuthTab(tab);
   if (message) showAlert("authAlert", message, "info");
@@ -555,17 +907,55 @@ function showAuthTab(tab) {
     el.classList.toggle("active", active);
     el.setAttribute("aria-selected", String(active));
   });
-  if (tab !== "choose") pendingLogin = null;
 }
 
-function completeAuth(data) {
-  pendingLogin = null;
-  ["login_password", "reg_password", "reg_password2", "inv_password"].forEach((id) => {
+function clearAuthPasswords() {
+  ["login_password", "reg_password", "reg_password2", "inv_password", "np_password", "np_password2"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
-  applySession(data);
-  routeAfterAuth();
+}
+
+/** Oturum açıldıktan sonra işletme verisini yükleyip uygun ekrana geçer. */
+async function continueAfterSignIn() {
+  clearAuthPasswords();
+  handleBootstrap(await apiCall("bootstrap"));
+}
+
+function termsAcceptance() {
+  return { terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() };
+}
+
+/** E-posta doğrulama ve şifre sıfırlama bağlantılarının döneceği adres (bu sayfa). */
+function appUrl() {
+  return window.location.origin + window.location.pathname;
+}
+
+async function finishSignIn() {
+  try {
+    await continueAfterSignIn();
+  } catch (err) {
+    if (!err.handled) showAlert("authAlert", err.message);
+  }
+}
+
+function showResendConfirmation(email) {
+  const alert = document.getElementById("authAlert");
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "link-btn";
+  btn.textContent = "Doğrulama e-postasını tekrar gönder";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const { error } = await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: appUrl() } });
+    showAlert("authAlert", error ? authErrorMessage(error) : "Doğrulama e-postası tekrar gönderildi. Gelen kutunuzu (ve gereksiz klasörünü) kontrol edin.", error ? "error" : "success");
+  });
+  alert.appendChild(document.createTextNode(" "));
+  alert.appendChild(btn);
+}
+
+function isUnconfirmedEmail(error) {
+  return error.code === "email_not_confirmed" || /Email not confirmed/i.test(error.message);
 }
 
 async function handleLoginSubmit(event) {
@@ -573,7 +963,7 @@ async function handleLoginSubmit(event) {
   const form = event.currentTarget;
   clearFieldErrors(form);
   hideAlert("authAlert");
-  const email = fieldValue("login_email");
+  const email = fieldValue("login_email").toLowerCase();
   const password = document.getElementById("login_password").value;
   const errors = {};
   if (!EMAIL_RE.test(email)) errors.login_email = "Geçerli bir e-posta adresi girin.";
@@ -581,22 +971,17 @@ async function handleLoginSubmit(event) {
   if (applyFieldErrors(errors)) return;
 
   await withButtonLoading(document.getElementById("btnLogin"), "Giriş yapılıyor…", async () => {
-    try {
-      const data = await apiCall("login", { email, password }, { auth: false });
-      if (data.needsTenantChoice) {
-        renderTenantChoices(data.tenants);
-        pendingLogin = { email, password };
-        return;
-      }
-      completeAuth(data);
-    } catch (err) {
-      showAlert("authAlert", err.message);
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      showAlert("authAlert", authErrorMessage(error));
+      if (isUnconfirmedEmail(error)) showResendConfirmation(email);
+      return;
     }
+    await finishSignIn();
   });
 }
 
 function renderTenantChoices(tenants) {
-  showAuthTab("choose");
   const list = document.getElementById("tenantChoiceList");
   list.innerHTML = "";
   tenants.forEach((t) => {
@@ -607,17 +992,29 @@ function renderTenantChoices(tenants) {
       <span class="tenant-choice-text"><strong>${t.name}</strong><small>${ROLE_LABELS[t.role] || ""}</small></span>
       <span aria-hidden="true">&rarr;</span>`;
     btn.addEventListener("click", async () => {
-      if (!pendingLogin) return showAuthTab("login");
       list.querySelectorAll("button").forEach((b) => { b.disabled = true; });
-      try {
-        completeAuth(await apiCall("login", { ...pendingLogin, tenantId: t.id }, { auth: false }));
-      } catch (err) {
-        showAlert("authAlert", err.message);
-        list.querySelectorAll("button").forEach((b) => { b.disabled = false; });
-      }
+      storageSet(ACTIVE_TENANT_KEY, t.id);
+      await finishSignIn();
+      list.querySelectorAll("button").forEach((b) => { b.disabled = false; });
     });
     list.appendChild(btn);
   });
+}
+
+/**
+ * E-posta doğrulaması açıkken kayıtlı bir e-postayla tekrar kayıt olunursa Supabase hata
+ * yerine kimliği (identity) olmayan bir kullanıcı döndürür; bunu ayırt ederiz.
+ */
+function isExistingAccountSignup(data) {
+  return !!(data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0);
+}
+
+/** Doğrulama e-postası gönderildiyse giriş sekmesine dönüp bilgi verir. */
+function showCheckEmail(form, email, message) {
+  form.reset();
+  showAuth("login");
+  document.getElementById("login_email").value = email;
+  showAlert("authAlert", message, "success");
 }
 
 async function handleRegisterSubmit(event) {
@@ -628,7 +1025,7 @@ async function handleRegisterSubmit(event) {
   const payload = {
     businessName: fieldValue("reg_businessName"),
     displayName: fieldValue("reg_displayName"),
-    email: fieldValue("reg_email"),
+    email: fieldValue("reg_email").toLowerCase(),
     password: document.getElementById("reg_password").value
   };
   const errors = {};
@@ -638,14 +1035,26 @@ async function handleRegisterSubmit(event) {
   const pwProblem = passwordProblem(payload.password);
   if (pwProblem) errors.reg_password = pwProblem;
   else if (payload.password !== document.getElementById("reg_password2").value) errors.reg_password2 = "Şifreler eşleşmiyor.";
+  if (!document.getElementById("reg_terms").checked) errors.reg_terms = "Devam etmek için Kullanım Koşulları'nı kabul edin.";
   if (applyFieldErrors(errors)) return;
 
   await withButtonLoading(document.getElementById("btnRegister"), "Hesap oluşturuluyor…", async () => {
-    try {
-      completeAuth(await apiCall("register", payload, { auth: false }));
-    } catch (err) {
-      showAlert("authAlert", err.message);
+    // İşletme ve sahip üyeliği, kullanıcı oluşturulurken veritabanında açılır (handle_new_user).
+    const { data, error } = await sb.auth.signUp({
+      email: payload.email,
+      password: payload.password,
+      options: {
+        data: { display_name: payload.displayName, business_name: payload.businessName, ...termsAcceptance() },
+        emailRedirectTo: appUrl()
+      }
+    });
+    if (error) return showAlert("authAlert", authErrorMessage(error));
+    if (isExistingAccountSignup(data)) {
+      return showAlert("authAlert", "Bu e-posta adresiyle kayıtlı bir hesap zaten var. Lütfen giriş yapın.");
     }
+    if (data.session) return finishSignIn();
+    showCheckEmail(form, payload.email,
+      `Hesabınız oluşturuldu. ${payload.email} adresine gönderilen doğrulama bağlantısına tıklayın; ardından otomatik olarak giriş yapacaksınız.`);
   });
 }
 
@@ -656,7 +1065,7 @@ async function handleInviteSubmit(event) {
   hideAlert("authAlert");
   const payload = {
     code: fieldValue("inv_code"),
-    email: fieldValue("inv_email"),
+    email: fieldValue("inv_email").toLowerCase(),
     displayName: fieldValue("inv_displayName"),
     password: document.getElementById("inv_password").value
   };
@@ -668,10 +1077,83 @@ async function handleInviteSubmit(event) {
 
   await withButtonLoading(document.getElementById("btnInvite"), "Doğrulanıyor…", async () => {
     try {
-      completeAuth(await apiCall("acceptInvite", payload, { auth: false }));
+      await rpc("check_invite", { p_code: payload.code, p_email: payload.email });
     } catch (err) {
-      showAlert("authAlert", err.message);
+      return showAlert("authAlert", err.message);
     }
+
+    // 1) Hesabı olan kullanıcı: giriş yapıp daveti kabul eder.
+    const signIn = await sb.auth.signInWithPassword({ email: payload.email, password: payload.password });
+    if (!signIn.error) {
+      try {
+        storageSet(ACTIVE_TENANT_KEY, await rpc("accept_invite", { p_code: payload.code }));
+      } catch (err) {
+        return showAlert("authAlert", err.message);
+      }
+      return finishSignIn();
+    }
+    if (isUnconfirmedEmail(signIn.error)) {
+      showAlert("authAlert", authErrorMessage(signIn.error));
+      return showResendConfirmation(payload.email);
+    }
+    const invalidCredentials = signIn.error.code === "invalid_credentials" || /Invalid login credentials/i.test(signIn.error.message);
+    if (!invalidCredentials) return showAlert("authAlert", authErrorMessage(signIn.error));
+
+    // 2) Yeni kullanıcı: hesap açılırken davet veritabanında kabul edilir.
+    if (!document.getElementById("inv_terms").checked) {
+      return applyFieldErrors({ inv_terms: "Yeni hesap için Kullanım Koşulları'nı kabul edin." });
+    }
+    if (payload.displayName.length < 2) {
+      setFieldError(document.getElementById("inv_displayName"), "Yeni hesap oluşturuyorsanız adınızı ve soyadınızı girin.");
+      return showAlert("authAlert", "Bu e-postayla giriş yapılamadı. Hesabınız varsa şifrenizi kontrol edin; yoksa adınızı soyadınızı girerek yeni hesap oluşturun.");
+    }
+    const pwProblem = passwordProblem(payload.password);
+    if (pwProblem) return applyFieldErrors({ inv_password: pwProblem });
+
+    const { data, error } = await sb.auth.signUp({
+      email: payload.email,
+      password: payload.password,
+      options: { data: { display_name: payload.displayName, invite_code: payload.code, ...termsAcceptance() }, emailRedirectTo: appUrl() }
+    });
+    if (error) return showAlert("authAlert", authErrorMessage(error));
+    if (isExistingAccountSignup(data)) return showAlert("authAlert", "Bu e-posta ile kayıtlı bir hesabınız var; lütfen mevcut şifrenizi girin.");
+    if (data.session) return finishSignIn();
+    showCheckEmail(form, payload.email,
+      `Hesabınız oluşturuldu ve davet kabul edildi. ${payload.email} adresine gönderilen doğrulama bağlantısına tıklayarak giriş yapın.`);
+  });
+}
+
+async function handleForgotSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  clearFieldErrors(form);
+  hideAlert("authAlert");
+  const email = fieldValue("fp_email").toLowerCase();
+  if (applyFieldErrors(EMAIL_RE.test(email) ? {} : { fp_email: "Geçerli bir e-posta adresi girin." })) return;
+  await withButtonLoading(document.getElementById("btnForgot"), "Gönderiliyor…", async () => {
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: appUrl() });
+    if (error) return showAlert("authAlert", authErrorMessage(error));
+    // Hesabın var olup olmadığı bilinçli olarak belirtilmez.
+    showAlert("authAlert", `${email} adresine kayıtlı bir hesap varsa şifre sıfırlama bağlantısı gönderildi. Gelen kutunuzu kontrol edin.`, "success");
+  });
+}
+
+async function handleNewPasswordSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  clearFieldErrors(form);
+  hideAlert("authAlert");
+  const password = document.getElementById("np_password").value;
+  const problem = passwordProblem(password);
+  const errors = {};
+  if (problem) errors.np_password = problem;
+  else if (password !== document.getElementById("np_password2").value) errors.np_password2 = "Şifreler eşleşmiyor.";
+  if (applyFieldErrors(errors)) return;
+  await withButtonLoading(document.getElementById("btnNewPassword"), "Kaydediliyor…", async () => {
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) return showAlert("authAlert", authErrorMessage(error));
+    showToast("Şifreniz güncellendi.", "success");
+    await finishSignIn();
   });
 }
 
@@ -842,6 +1324,8 @@ async function processLogoFile(file) {
 // ==========================================================================
 const setupState = { step: 1 };
 const SETUP_STEP_GROUPS = { 1: "identity", 2: "regional", 3: "tax" };
+// Son adım: işletmenin e-posta hesabı (isteğe bağlı, mail.js).
+const SETUP_MAIL_STEP = 4;
 
 function showSetupWizard() {
   const t = platform.tenant;
@@ -852,6 +1336,7 @@ function showSetupWizard() {
   // renderBusinessFields her çağrıda logo değerini sıfırladığı için mevcut logoyu tekrar ata
   logoValues.setup = t.logoDataUrl || "";
   renderLogoInto(document.getElementById("setup_logoDataUrl_preview"), logoValues.setup, t.name);
+  renderMailFields(document.querySelector(`[data-setup-step="${SETUP_MAIL_STEP}"]`), "setup", null, { optional: true });
 
   document.getElementById("setupUserText").textContent = `${platform.user.displayName} · ${ROLE_LABELS[platform.role]}`;
   const form = document.getElementById("setupForm");
@@ -871,7 +1356,7 @@ function goToSetupStep(step, { skipValidation = false } = {}) {
     clearFieldErrors(form);
     if (applyFieldErrors(validateBusinessFields("setup", [SETUP_STEP_GROUPS[setupState.step]]))) return;
   }
-  setupState.step = Math.min(3, Math.max(1, step));
+  setupState.step = Math.min(SETUP_MAIL_STEP, Math.max(1, step));
   document.querySelectorAll("[data-setup-step]").forEach((el) => {
     el.classList.toggle("hidden", Number(el.dataset.setupStep) !== setupState.step);
   });
@@ -881,8 +1366,8 @@ function goToSetupStep(step, { skipValidation = false } = {}) {
     el.classList.toggle("completed", n < setupState.step);
   });
   document.getElementById("setupBackBtn").classList.toggle("invisible", setupState.step === 1);
-  document.getElementById("setupNextBtn").classList.toggle("hidden", setupState.step === 3);
-  document.getElementById("setupFinishBtn").classList.toggle("hidden", setupState.step !== 3);
+  document.getElementById("setupNextBtn").classList.toggle("hidden", setupState.step === SETUP_MAIL_STEP);
+  document.getElementById("setupFinishBtn").classList.toggle("hidden", setupState.step !== SETUP_MAIL_STEP);
 }
 
 function updateSetupPreview() {
@@ -896,7 +1381,7 @@ function updateSetupPreview() {
 
 async function handleSetupSubmit(event) {
   event.preventDefault();
-  if (setupState.step < 3) {
+  if (setupState.step < SETUP_MAIL_STEP) {
     goToSetupStep(setupState.step + 1);
     return;
   }
@@ -911,13 +1396,26 @@ async function handleSetupSubmit(event) {
     applyFieldErrors(errors);
     return;
   }
+  const mail = readMailFields("setup");
+  if (applyFieldErrors(validateMailFields("setup", mail, { optional: true }))) return;
   await withButtonLoading(document.getElementById("setupFinishBtn"), "Kaydediliyor…", async () => {
     try {
       applySession(await apiCall("saveBusinessProfile", readBusinessFields("setup")));
-      enterApp();
-      showToast(`Kurulum tamamlandı. ${platform.tenant.name} için hazırsınız!`, "success");
     } catch (err) {
       if (!err.handled) showAlert("setupAlert", err.message);
+      return;
+    }
+    enterApp();
+    showToast(`Kurulum tamamlandı. ${platform.tenant.name} için hazırsınız!`, "success");
+    // E-posta hesabı isteğe bağlıdır; kaydedilemezse kurulum yine tamamlanmış olur.
+    if (mail.user) {
+      try {
+        setMailStatus(await apiCall("saveMailSettings", mail));
+        renderAll();
+        showToast("E-posta hesabınız kaydedildi. Ayarlar > E-posta bölümünden test e-postası gönderebilirsiniz.", "info");
+      } catch (err) {
+        if (!err.handled) showToast(`E-posta hesabı kaydedilemedi: ${err.message} Ayarlar > E-posta bölümünden tekrar deneyin.`, "warning");
+      }
     }
   });
 }
@@ -943,6 +1441,7 @@ function showSettingsTab(tab) {
   if (tab === "profile") renderProfileForm();
   else if (tab === "team") loadTeam();
   else if (tab === "plan") renderPlan();
+  else if (tab === "mail") renderMailSettings();
   else renderAccount();
 }
 
@@ -1146,14 +1645,10 @@ function renderAccount() {
   </div>`.toString();
   document.getElementById("btnSwitchTenant").addEventListener("click", async (e) => {
     await withButtonLoading(e.currentTarget, "Geçiliyor…", async () => {
-      try {
-        const data = await apiCall("switchTenant", { tenantId: document.getElementById("tenantSwitchSelect").value });
-        storageSet(SESSION_KEY, data.token);
-        clearTenantCaches();
-        window.location.reload();
-      } catch (err) {
-        reportError(err);
-      }
+      // Erişim her istekte veritabanında denetlendiği için yalnızca aktif işletme değiştirilir.
+      storageSet(ACTIVE_TENANT_KEY, document.getElementById("tenantSwitchSelect").value);
+      clearTenantCaches();
+      window.location.reload();
     });
   });
 }
@@ -1219,7 +1714,8 @@ async function handleCloseAccount(event) {
   await withButtonLoading(document.getElementById("btnCloseAccount"), "Kapatılıyor…", async () => {
     try {
       const result = await apiCall("closeTenant", { confirmName, password });
-      storageRemove(SESSION_KEY);
+      try { await sb.auth.signOut({ scope: "local" }); } catch { /* yok say */ }
+      storageRemove(ACTIVE_TENANT_KEY);
       clearTenantCaches();
       showNotice({
         title: "İşletme hesabı kapatıldı",

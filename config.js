@@ -1,18 +1,19 @@
 /**
  * Dağıtım yapılandırması (işletmelere değil, hizmeti işleten tarafa aittir).
  *
- * apiUrl      : Google Apps Script web uygulaması adresi (".../exec"). Gizli değildir;
- *               tüm veri erişimi sunucuda oturum ve işletme yetkisiyle korunur.
- *               Boş bırakılırsa uygulama kurulum uyarısı gösterir.
- * productName : Giriş ekranında ve tarayıcı başlığında görünen ürün adı.
- * supportContact : Kapalı kayıt, plan değişikliği gibi durumlarda gösterilen iletişim bilgisi (isteğe bağlı).
+ * supabaseUrl     : Supabase proje adresi (Project Settings > API > Project URL).
+ * supabaseAnonKey : Supabase "anon" (public) anahtarı. Tarayıcıda herkese açık olacak şekilde
+ *                   tasarlanmıştır; tüm veri erişimi veritabanındaki RLS kurallarıyla korunur.
+ *                   "service_role" anahtarını ASLA buraya yazmayın.
+ * productName     : Giriş ekranında ve tarayıcı başlığında görünen ürün adı.
+ * supportContact  : Plan değişikliği gibi durumlarda gösterilen iletişim bilgisi (isteğe bağlı).
  *
- * Yerel geliştirmede `npm run dev` bu dosyadaki apiUrl'i otomatik olarak yerel sunucuya yönlendirir.
+ * Tek seferlik lisans kurulumlarında bu dosya müşterinin kendi Supabase projesinin
+ * bilgileriyle doldurulur; uygulama kodu aynıdır.
  */
-window.OTO_TAKIP_CONFIG = {
-  // Önceki sürümde app.js içine gömülü olan dağıtım adresi. Yeni code.gs aynı dağıtıma
-  // "yeni sürüm" olarak yüklenirse adres değişmez (bkz. README > Sunucu kurulumu).
-  apiUrl: "https://script.google.com/macros/s/AKfycbyEjKLeIdZH0IUuANWubS6seveDg83t2lUb7O4Kahw_qBl-hynETiIe_zHLzg8H1UOcEg/exec",
-  productName: "OtoTakip",
+window.OSION_CONFIG = {
+  supabaseUrl: "https://gllyfkscgxpjgemlshxm.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsbHlma3NjZ3hwamdlbWxzaHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5MDE2NDgsImV4cCI6MjEwNzQ3NzY0OH0.1pt-VytYIIp-bdUrc5i-HTTc1-gUhj7vz_nchvx8usQ",
+  productName: "OSION",
   supportContact: ""
 };

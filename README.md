@@ -1,13 +1,24 @@
-# OtoTakip — Oto Servisleri için Çok İşletmeli Servis Takip
+# OSION — Oto Servisleri için Servis Takip
 
-Oto tamir servisleri, elektrikçiler, kaportacılar ve usta dükkanları için müşteri, araç, servis kaydı, borç/alacak ve gelir takibi yapan web uygulaması. Sürüm 2 ile uygulama **tek bir dükkana özel** olmaktan çıkıp **birden fazla işletmeye satılabilen** (multi-tenant) bir yapıya geçti:
+Oto tamir servisleri, elektrikçiler, kaportacılar ve usta dükkanları için müşteri, araç, servis kaydı, borç/alacak ve gelir takibi yapan web uygulaması.
 
 - Her işletme kendi hesabını açar, ilk girişte **dükkan bilgilerini** (ad, telefon, adres, logo, para birimi, tarih biçimi, vergi bilgileri) doldurur.
-- Uygulama başlığı, menü, tutar ve tarih gösterimleri o işletmenin ayarlarına göre çalışır.
-- Her işletmenin verisi **sunucu tarafında** ayrılır; bir işletme başka işletmenin kaydını göremez, değiştiremez, silemez.
+- Her işletmenin verisi **veritabanı düzeyinde** (Supabase / PostgreSQL satır düzeyi güvenlik) ayrılır; bir işletme başka işletmenin kaydını göremez, değiştiremez, silemez.
 - İşletme sahibi çalışanlarını **davet koduyla** ekler; roller: İşletme Sahibi, Yönetici, Çalışan.
 
-Altyapı değişmedi: ön yüz saf HTML/CSS/JavaScript, arka uç **Google Apps Script** (`code.gs`), veritabanı **Google E-Tablolar**. Yeni çalışma zamanı bağımlılığı eklenmedi.
+Altyapı: ön yüz saf HTML/CSS/JavaScript; arka uç ve veritabanı **Supabase** (PostgreSQL + Auth). Sunucu kodu yoktur; tüm kurallar `supabase/migrations` içindeki SQL ile veritabanında uygulanır.
+
+---
+
+## Satış modelleri
+
+| | Abonelik (aylık/yıllık) | Tek seferlik lisans |
+|---|---|---|
+| Altyapı | Ortak OSION Supabase projesi | Müşterinin kendi Supabase projesi |
+| Kurulum | Müşteri siteden kayıt olur | Operatör kurar (aşağıdaki adımlar) |
+| Plan | `basic` / `pro`, `current_period_end` ile süreli | `lifetime`, süresiz |
+
+İki model de **aynı kodu ve aynı SQL dosyalarını** kullanır; yalnızca `config.js` farklıdır.
 
 ---
 
@@ -21,7 +32,8 @@ Altyapı değişmedi: ön yüz saf HTML/CSS/JavaScript, arka uç **Google Apps S
 | Tarihler | Günlere göre araç giriş takvimi |
 | Servis Girişi | 16 iş koluna göre usta ücretleri, kısmi/nakit/havale/kart ödeme |
 | Servis Notları / Borç Listesi | Geçmiş kayıtlar, tahsilat |
-| **İşletme Ayarları** (yeni) | İşletme profili ve logo, ekip ve davetler, abonelik bilgisi, şifre değiştirme, veri dışa aktarma, hesap kapatma |
+| Araç sahiplerine e-posta | Servis fişi ve hazır şablonlu mesajlar (aracınız hazır, bakım, ödeme hatırlatması) işletmenin kendi e-posta adresinden gönderilir |
+| İşletme Ayarları | İşletme profili ve logo, ekip ve davetler, e-posta hesabı, abonelik bilgisi, şifre değiştirme, veri dışa aktarma, hesap kapatma |
 
 ### Roller
 
@@ -32,32 +44,39 @@ Altyapı değişmedi: ön yüz saf HTML/CSS/JavaScript, arka uç **Google Apps S
 | İşletme profili, çalışan daveti/çıkarma | ✓ | ✓ (yalnız çalışanları çıkarır) | – |
 | Yönetici daveti, rol değiştirme, veri dışa aktarma, hesabı kapatma | ✓ | – | – |
 
-Yetkiler sunucuda (`code.gs`) uygulanır; arayüzdeki gizlemeler yalnızca kolaylık içindir.
+Yetkiler veritabanında uygulanır; arayüzdeki gizlemeler yalnızca kolaylık içindir.
 
 ---
 
 ## Dosya yapısı
 
 ```
-index.html        Uygulama kabuğu, giriş/kurulum ekranları, sayfalar ve modaller
-style.css         Tema ve bileşen stilleri (açık/koyu tema, mobil uyum)
-config.js         Dağıtım ayarları: API adresi, ürün adı, destek iletişimi
-platform.js       Oturum, API istemcisi, giriş/kayıt/davet, kurulum sihirbazı, işletme ayarları, biçimlendirme
-app.js            Müşteri/araç/servis ekranları, grafikler, arama
-code.gs           Google Apps Script arka ucu (kimlik doğrulama, işletme kapsamı, veri erişimi, geçiş)
-tools/
-  gas-runtime.js  Apps Script ortamının Node.js taklidi (test ve yerel geliştirme için)
-  dev-server.js   Yerel geliştirme sunucusu
-  legacy-seed.js  Eski (v1) E-Tablo yapısında örnek veri
-tests/            Otomatik testler (node:test)
-yedek-v1/         Bu dönüşümden önceki dosyaların birebir kopyası
+index.html                 Uygulama kabuğu, giriş/kurulum ekranları, sayfalar ve modaller
+kullanim-kosullari.html    Kullanım Koşulları (taslak, doldurulmalı)
+gizlilik.html              KVKK Aydınlatma Metni (taslak, doldurulmalı)
+vercel.json                Vercel yayın ayarları ve güvenlik başlıkları
+tools/build.js             Yayın paketi (dist/) ve CSP üretimi
+style.css                  Tema ve bileşen stilleri
+config.js                  Dağıtım ayarları: Supabase adresi ve anon anahtarı, ürün adı
+platform.js                Supabase istemcisi, oturum, giriş/kayıt/davet, kurulum sihirbazı, işletme ayarları
+app.js                     Müşteri/araç/servis ekranları, grafikler, arama
+mail.js                    İşletme e-posta ayarları, servis fişi ve müşteri mesajı gönderimi
+supabase/migrations/       Veritabanı şeması, güvenlik kuralları (RLS) ve fonksiyonlar
+supabase/functions/send-mail/  E-postayı işletmenin SMTP hesabıyla gönderen Edge Function
+supabase/templates/        Supabase hesap e-postalarının Türkçe şablonları
+tests/                     Veritabanı (gömülü Postgres) ve e-posta içeriği testleri
+tools/dev-server.js        Yerel geliştirme sunucusu
 ```
 
 ---
 
 ## Yerel geliştirme ve testler
 
-Gereksinim: Node.js 18+ (bağımlılık kurulumu gerekmez).
+Gereksinim: Node.js 18+.
+
+```bash
+npm install
+```
 
 ```bash
 npm test
@@ -67,107 +86,150 @@ npm test
 npm run dev
 ```
 
-`npm run dev` uygulamayı http://localhost:8787 adresinde açar ve gerçek `code.gs` dosyasını bellek içi sahte bir E-Tablo üzerinde çalıştırır; Google hesabı gerekmez. Veriler `.dev-data/` klasöründe saklanır (git'e eklenmez).
+`npm run dev` uygulamayı http://localhost:8787 adresinde açar; veriler `config.js`'teki Supabase projesine gider.
+
+---
+
+## Yayına alma (Vercel)
+
+`vercel.json` hazırdır: Vercel `node tools/build.js` ile yalnızca uygulama dosyalarını `dist/` klasörüne paketler ve güvenlik başlıklarını (CSP, HSTS, X-Frame-Options vb.) ekler. Yasal metinlerde doldurulmamış `[DOLDURUN: …]` alanları yayını durdurmaz; sitede "(güncellenecek)" olarak görünür ve build uyarı verir. Alanları doldurup yeniden yayınlamanız yeterlidir. Boş alan varken yayını durdurmak isterseniz build komutunu `node tools/build.js --siki` yapın.
+
+Yerelde yayın paketini denemek için:
 
 ```bash
-npm run dev:legacy
+npm run preview
 ```
 
-Eski tek işletmeli örnek verileri oluşturur, geçişi çalıştırır ve sahip davet kodunu terminale yazar (yalnızca yerel deneme ortamında). Kodla **Davet Kodu** sekmesinden hesap açıp geçiş akışını uçtan uca deneyebilirsiniz.
+### Kontrol listesi
+
+1. `kullanim-kosullari.html` ve `gizlilik.html` içindeki `[DOLDURUN: …]` alanlarını (müsait olduğunuzda) doldurup yeniden yayınlayın; metinleri bir avukata kontrol ettirin.
+2. `config.js` → `supportContact` alanına destek e-postanızı yazın.
+3. `send-mail` Edge Function'ını dağıtın (aşağıda).
+4. Projeyi Vercel'e yükleyin:
+   ```bash
+   npx vercel --prod
+   ```
+   İlk çalıştırmada Vercel hesabınıza giriş yapıp yeni proje (`osion`) oluşturmayı onaylayın; ayarları değiştirmeyin (`vercel.json` kullanılır).
+5. Alan adı: Vercel proje ayarları > **Domains** bölümünden alan adınızı ekleyin ve gösterilen DNS kayıtlarını alan adı sağlayıcınıza girin.
+6. Supabase **Authentication > URL Configuration**:
+   - Site URL: `https://alanadiniz.com` (yayın adresi)
+   - Redirect URLs: `https://alanadiniz.com/**` ve geliştirme için `http://localhost:8787`
+7. Brevo'da alan adınızı doğrulayın (SPF/DKIM) ve SMTP gönderen adresini `bildirim@alanadiniz.com` gibi alan adınıza ait bir adres yapın.
+8. Supabase planı: Ücretsiz projeler 7 gün kullanılmazsa **duraklatılır** ve otomatik yedek almaz. Gerçek müşterilerden önce **Pro** plana (aylık ~25 $, günlük yedek) geçin.
+9. Supabase **Advisors > Security Advisor** sayfasında uyarı kalmadığını kontrol edin.
+10. Yayından sonra: kayıt → e-posta doğrulama → kurulum → müşteri/araç/servis kaydı → servis fişi e-postası akışını gerçek adreste baştan sona deneyin.
+
+## Supabase kurulumu (yeni proje)
+
+1. Supabase'de proje oluşturun (bölge: **Frankfurt / eu-central-1**).
+2. **SQL Editor** → `supabase/migrations/` içindeki dosyaları sırayla yapıştırıp **Run** ile çalıştırın.
+3. **Authentication > URL Configuration**
+   - Site URL: uygulamanın yayın adresi (ör. `https://osion.com.tr`)
+   - Redirect URLs: yayın adresi ve geliştirme için `http://localhost:8787`
+4. **Authentication > Providers > Email**: "Confirm email" açık kalsın; en az şifre uzunluğunu **8** yapın.
+5. **Hesap e-postaları (SMTP)** — Supabase'in yerleşik e-posta servisi yalnızca proje ekibindeki adreslere ve saatte birkaç e-posta gönderir; gerçek müşteriler için aşağıdaki "Brevo SMTP" adımlarını uygulayın.
+6. **Authentication > Emails > Templates**: `supabase/templates/` içindeki şablonları ilgili sekmelere yapıştırın:
+
+   | Sekme | Dosya | Konu |
+   |---|---|---|
+   | Confirm signup | `confirmation.html` | OSION hesabınızı doğrulayın |
+   | Reset Password | `recovery.html` | OSION şifre sıfırlama |
+   | Change Email Address | `email_change.html` | OSION e-posta adresi değişikliği |
+7. **Project Settings > API**: Project URL ve `anon` anahtarını `config.js`'e yazın. `service_role` anahtarını asla ön yüze koymayın.
+8. **send-mail Edge Function** (araç sahiplerine e-posta için) — aşağıdaki "Edge Function dağıtımı" adımlarını uygulayın.
+9. Statik dosyaları (`index.html`, `style.css`, `config.js`, `platform.js`, `app.js`, `mail.js`, `car logo/`) bir statik barındırmaya (Vercel, Netlify vb.) yükleyin. `supabase/`, `tests/`, `tools/` ve `node_modules/` yayınlanmamalıdır.
+
+### Brevo SMTP (ortak abonelik projesi)
+
+1. [brevo.com](https://www.brevo.com) üzerinde ücretsiz hesap açın (günde 300 e-posta).
+2. **Senders, Domains & Dedicated IPs > Senders**: gönderen adresini (ör. `bildirim@alanadiniz.com` veya kendi e-postanız) ekleyip doğrulayın. Alan adınız olduğunda **Domains** bölümünden alan adını da doğrulayın (SPF/DKIM); e-postaların spam'e düşmemesi için önemlidir.
+3. **SMTP & API > SMTP** sekmesinde bir **SMTP key** oluşturun.
+4. Supabase **Authentication > Emails > SMTP Settings** → "Enable Custom SMTP":
+   - Sender email: Brevo'da doğruladığınız adres · Sender name: `OSION`
+   - Host: `smtp-relay.brevo.com` · Port: `587`
+   - Username: Brevo SMTP sayfasındaki "Login" değeri · Password: oluşturduğunuz SMTP key
+5. **Authentication > Rate Limits**: "Rate limit for sending emails" değerini ihtiyaca göre (ör. saatte 100) yükseltin.
+
+### Edge Function dağıtımı (send-mail)
+
+Bir kez yapılır; kod güncellenince 3. komut tekrar çalıştırılır.
+
+```bash
+npx supabase login
+```
+
+```bash
+npx supabase link --project-ref <proje-ref>
+```
+
+```bash
+npx supabase functions deploy send-mail
+```
+
+`<proje-ref>`, proje adresindeki alt alan adıdır (`https://<proje-ref>.supabase.co`). Fonksiyonun ihtiyaç duyduğu `SUPABASE_URL`, `SUPABASE_ANON_KEY` ve `SUPABASE_SERVICE_ROLE_KEY` değerlerini Supabase otomatik sağlar; ek ayar gerekmez.
+
+### Araç sahiplerine e-posta (işletmenin kendi adresi)
+
+- İşletme sahibi/yöneticisi e-posta hesabını ilk kurulumun son adımında veya **İşletme Ayarları > E-posta** bölümünden ekler, ardından **Test E-postası Gönder** ile doğrular.
+- Desteklenen sağlayıcılar: Gmail/Google Workspace, Yandex, Yahoo ve 465 (SSL) portunu destekleyen diğer sunucular. Supabase Edge Functions 25 ve 587 portlarına bağlanamadığı için Outlook/Hotmail desteklenmez.
+- Gmail için hesapta 2 Adımlı Doğrulama açık olmalı ve <https://myaccount.google.com/apppasswords> adresinden uygulama şifresi alınmalıdır.
+- Uygulama şifresi Supabase Vault'ta şifreli saklanır; tarayıcıya ve veritabanı kullanıcılarına hiçbir zaman geri gönderilmez.
+- Alıcı her zaman veritabanındaki müşteri e-postasıdır; işletme başına 24 saatte en fazla 200 e-posta gönderilir. Gönderimler `mail_log` tablosuna yazılır.
+
+### Tek seferlik lisans kurulumu
+
+1. Müşteri adına (müşterinin hesabında) yeni bir Supabase projesi açın ve yukarıdaki 1–6. adımları uygulayın.
+2. Müşterinin işletme sahibi hesabı uygulamadan kayıt olur.
+3. SQL Editor'de işletmeyi süresiz lisansa geçirin:
+   ```sql
+   select private.set_tenant_plan((select id from public.tenants limit 1), 'lifetime', 'active', null);
+   ```
+4. Başkasının bu kuruluma kayıt olmaması için **Authentication > Providers > Email > Allow new users to sign up** seçeneğini kapatın (çalışanlar davet koduyla eklenmeye devam eder).
+5. **Hesap e-postaları müşterinin kendi Gmail'inden gider:** Müşterinin Google hesabında 2 Adımlı Doğrulama açıp <https://myaccount.google.com/apppasswords> adresinden uygulama şifresi alın. Müşterinin projesinde **Authentication > Emails > SMTP Settings** → "Enable Custom SMTP":
+   - Sender email: müşterinin Gmail adresi · Sender name: işletme adı
+   - Host: `smtp.gmail.com` · Port: `465`
+   - Username: müşterinin Gmail adresi · Password: 16 haneli uygulama şifresi (boşluksuz)
+6. `send-mail` Edge Function'ını müşterinin projesine de dağıtın (`npx supabase link --project-ref <müşteri-proje-ref>` ardından deploy). Araç sahiplerine e-posta için müşteri aynı Gmail ve uygulama şifresini **İşletme Ayarları > E-posta** bölümüne girer.
 
 ---
 
-## Sunucu (Apps Script) kurulumu
+## Operatör işlemleri (SQL Editor)
 
-### Yeni kurulum
-
-1. Google Drive'da yeni bir E-Tablo oluşturun → **Uzantılar > Apps Script**.
-2. `code.gs` içeriğini yapıştırıp kaydedin.
-3. **Dağıt > Yeni dağıtım > Web uygulaması**
-   - Şu kişi olarak çalıştır: **Ben**
-   - Erişimi olan kişiler: **Herkes**
-   (Erişim herkese açık olsa da veri döndüren her işlem oturum ister; `doGet` hiçbir veri döndürmez.)
-4. Verilen `.../exec` adresini `config.js` içindeki `apiUrl` alanına yazın.
-5. Statik dosyaları (`index.html`, `style.css`, `config.js`, `platform.js`, `app.js`, `car logo/`) herhangi bir statik barındırmaya (GitHub Pages, Netlify, Vercel vb.) yükleyin. `tools/`, `tests/`, `yedek-v1/` ve `.dev-data/` yayınlanmamalıdır.
-
-Sayfalar (`Tenants`, `Users`, `Memberships`, `Sessions`, `Invitations`, `AuditLog`, `Customers`, `Vehicles`, `ServiceRecords`) ilk istekte otomatik oluşturulur.
-
-### Ortam ayarları (Script Properties)
-
-Apps Script düzenleyicisinde **Proje Ayarları > Komut dosyası özellikleri** altından tanımlanır. Hepsi isteğe bağlıdır; gizli anahtar kaynak koda yazılmaz.
-
-| Anahtar | Varsayılan | Açıklama |
-|---|---|---|
-| `SIGNUP_MODE` | `open` | `open`: herkes işletme hesabı açabilir. `closed`: yeni işletmeler yalnızca operatörün `provisionTenant()` ile oluşturduğu sahip davet koduyla açılır. |
-| `SIGNUP_HOURLY_LIMIT` | `20` | Saatte açılabilecek en fazla yeni işletme (kötüye kullanım sınırı). |
-| `DATA_RETENTION_DAYS` | `30` | Kapatılan işletmenin verisinin kalıcı silinmeden önce saklanacağı gün sayısı. |
-| `LEGACY_TENANT_NAME` | `İşletmem` | Eski verilerin bağlanacağı varsayılan işletmenin başlangıç adı (sahibi kurulumda değiştirir). |
-| `BILLING_PROVIDER` | – | Ödeme sağlayıcısı entegre edildiğinde doldurulacak; şu an yalnızca arayüzdeki bilgilendirmeyi etkiler. |
-
-Sistem tarafından yazılan anahtarlar: `SCHEMA_VERSION`, `LEGACY_TENANT_ID`, `LEGACY_BACKUP_ID`, `OWNER_CLAIM_<işletmeId>` (tek kullanımlık sahip davet kodu; kullanıldığında silinir).
-
-`config.js` alanları: `apiUrl` (Apps Script adresi), `productName` (giriş ekranı ve sekme başlığındaki ürün adı), `supportContact` (plan/hesap işlemleri için gösterilecek iletişim bilgisi).
-
-### Operatör fonksiyonları (Apps Script düzenleyicisinden çalıştırılır)
-
-| Fonksiyon | Ne yapar |
+| Komut | Ne yapar |
 |---|---|
-| `migrateLegacyData()` | Eski tek işletmeli verileri varsayılan işletmeye bağlar (aşağıya bakın). |
-| `provisionTenant('İşletme Adı')` | Yeni işletme + sahip davet kodu oluşturur (kapalı kayıt modu için). Düzenleyicide `function calistir(){ provisionTenant('Yıldız Oto'); }` gibi bir sarmalayıcıyla çalıştırın. |
-| `setTenantPlan(tenantId, planId, durum)` | Plan/abonelik durumunu elle atar. Planlar: `trial`, `basic`, `pro`, `legacy`; durumlar: `trialing`, `active`, `past_due`, `canceled`. |
-| `restoreTenant(tenantId)` | Kapatılmış ama henüz silinmemiş işletmeyi geri açar. |
-| `dailyMaintenance()` | Saklama süresi dolan kapalı işletmelerin verisini kalıcı siler, eski oturumları temizler. **Tetikleyiciler > Zamana dayalı > Günlük** olarak kurulması önerilir. |
+| `select private.set_tenant_plan('<işletme-id>', 'pro', 'active', now() + interval '1 month');` | Planı ve abonelik dönem sonunu atar. Planlar: `trial`, `basic`, `pro`, `lifetime`; durumlar: `trialing`, `active`, `past_due`, `canceled`. |
+| `select private.set_tenant_plan('<işletme-id>', 'lifetime', 'active', null);` | Süresiz lisans. |
+| `select private.restore_tenant('<işletme-id>');` | Kapatılmış ama henüz silinmemiş işletmeyi geri açar. |
+| `select private.purge_closed_tenants();` | Saklama süresi (30 gün) dolan kapalı işletmeleri kalıcı siler. `pg_cron` etkinse her gün 03:00'te otomatik çalışır. |
+| `select id, name, plan_id, subscription_status, trial_ends_at, current_period_end from public.tenants;` | İşletmeleri ve aboneliklerini listeler. |
 
----
+Planların kullanıcı sınırları `public.plans` tablosundadır.
 
-## Mevcut (v1) kurulumdan geçiş
+### Abonelik kuralı
 
-Eski sürüm tüm verileri tek bir E-Tabloda, işletme ayrımı olmadan tutuyordu. Geçiş **veri silmez** ve **tekrar çalıştırılabilir**.
+Yazma (kayıt ekleme/düzenleme/silme) şu durumlarda açıktır; aksi halde işletme verilerini yalnızca **okuyabilir**:
 
-1. **Ön yüzü ve sunucuyu birlikte güncelleyin.** Eski ön yüz yeni sunucuyla, yeni ön yüz eski sunucuyla çalışmaz.
-2. Apps Script'te `code.gs` içeriğini yenisiyle değiştirin. **Dağıt > Dağıtımları yönet > (mevcut dağıtım) > Düzenle > Sürüm: Yeni sürüm** ile yayınlayın; böylece adres değişmez (adres `config.js` içinde zaten tanımlı). Yeni dağıtım oluşturursanız `config.js` → `apiUrl` değerini güncelleyin.
-3. (İsteğe bağlı) `LEGACY_TENANT_NAME` özelliğine dükkan adını yazın.
-4. Düzenleyicide `migrateLegacyData` fonksiyonunu seçip **Çalıştır**'a basın. Fonksiyon:
-   - Taşınacak satır varsa önce E-Tablonun **tam bir kopyasını** Drive'a alır (`LEGACY_BACKUP_ID`),
-   - Mevcut sütunlara dokunmadan `tenantId` ve `updatedAt` sütunlarını **sona ekler**,
-   - `tenantId`'si boş tüm müşteri/araç/servis satırlarını varsayılan işletmeye bağlar,
-   - İşletmenin sahibi yoksa tek kullanımlık bir **sahip davet kodu** üretir ve `OWNER_CLAIM_<işletmeId>` özelliğine yazar (kod loglanmaz).
-5. Dükkan sahibi uygulamada **Davet Kodu** sekmesinden bu kodla e-posta ve şifresini belirler, kurulum sihirbazını tamamlar ve eski verilerini görür.
+- `trialing` ve `trial_ends_at` gelecekte (yeni işletmeler 30 gün deneme ile başlar),
+- `active` ve `current_period_end` boş (süresiz) ya da en fazla 3 gün geçmiş,
+- `past_due` ve `current_period_end` en fazla 7 gün geçmiş.
 
-Notlar:
-- Geçiş çalıştırılana kadar eski satırlar silinmez ama **hiçbir kullanıcıya görünmez** (işletmesi belirsiz veri varsayılan olarak gizlenir).
-- Geçiş tekrar çalıştırılırsa yalnızca hâlâ işletmesiz satırları bağlar; geçerli sahip kodunu yeniden üretmez, yedeği bir kez alır.
-- Tarayıcıda eski sürümün `oto_takip_local_db` ve `oto_takip_api_url` anahtarları silinmez ve yeni sürüm tarafından kullanılmaz. Yalnızca yerel modda (Sheets bağlantısı olmadan) kullanılmış veriler varsa bunlar otomatik içe aktarılmaz.
+Ödeme sağlayıcısı (iyzico / PayTR) entegrasyonu henüz yoktur; planlar operatör tarafından elle atanır.
 
 ---
 
 ## Güvenlik modeli
 
-- **İşletme kapsamı sunucuda:** Her istek bir oturum anahtarı taşır; sunucu oturumdan kullanıcıyı, üyeliği ve işletmeyi bulur. İstemcinin gönderdiği `tenantId`/`id`/`createdAt` gibi alanlar yok sayılır. Tüm okuma, güncelleme ve silmeler `id` **ve** `tenantId` eşleşmesiyle yapılır; başka işletmenin kaydı "bulunamadı" yanıtı alır. Araç–müşteri ve servis–araç bağlantıları da aynı işletme içinde doğrulanır.
-- **Kimlik doğrulama:** Şifreler PBKDF2-HMAC-SHA256 (tuzlu, 4.000 tur) ile saklanır; oturum anahtarları ve davet kodları yalnızca SHA-256 özetleriyle saklanır. 5 hatalı girişte hesap 15 dakika kilitlenir. Oturum 7 gün geçerlidir; çıkış, şifre değişikliği, üyelikten çıkarma ve hesap kapatma ilgili oturumları anında geçersiz kılar.
-- **Formül enjeksiyonu:** `=`, `+`, `-`, `@` ile başlayan metinler hücreye düz metin olarak yazılır; kullanıcı girdisi E-Tabloda formül çalıştıramaz.
-- **XSS:** Kullanıcı verisi içeren tüm HTML, otomatik kaçışlayan `html` şablonuyla üretilir; logo olarak yalnızca PNG/JPEG/WEBP kabul edilir (SVG kabul edilmez).
-- **Eşzamanlılık:** Yazma işlemleri Apps Script betik kilidi altında yapılır.
-- **Loglama:** Beklenmeyen hatalarda yalnızca işlem adı ve hata mesajı loglanır; istek içeriği (müşteri bilgisi, şifre) loglanmaz. `AuditLog` sayfası yalnızca kimlikleri (işletme, kullanıcı, kayıt) içerir.
+- **İşletme izolasyonu veritabanında:** Müşteri, araç ve servis tablolarında RLS yalnızca kullanıcının aktif üyesi olduğu işletmelerin satırlarına izin verir. Araç–müşteri ve servis–araç ilişkileri `(tenant_id, id)` bileşik yabancı anahtarıyla kurulduğundan başka işletmenin kaydına bağlanmak imkânsızdır. Kayıtların `tenant_id`, `id` ve `created_at` alanları güncellemeyle değiştirilemez.
+- **Yetkiler:** Silme yalnızca sahip/yöneticiye açıktır. Plan ve abonelik sütunlarını kullanıcılar değiştiremez (sütun yetkileri). Ekip ve davet işlemleri rol denetimli veritabanı fonksiyonlarıyla yapılır; üyelikten çıkarılan kullanıcının erişimi bir sonraki istekte kesilir.
+- **Kimlik doğrulama:** Supabase Auth (e-posta doğrulama, şifre sıfırlama, oturum yenileme). Davet kodları 96 bit rastgeledir ve yalnızca SHA-256 özetiyle saklanır.
+- **İş kuralları sunucuda:** Servis toplamı usta ücretlerinin toplamı olarak veritabanında hesaplanır; istemcinin gönderdiği toplam yok sayılır.
+- **XSS:** Kullanıcı verisi içeren tüm HTML, otomatik kaçışlayan `html` şablonuyla üretilir; logo olarak yalnızca PNG/JPEG/WEBP kabul edilir.
+- **E-posta şifreleri:** İşletmelerin SMTP uygulama şifreleri Supabase Vault'ta şifreli tutulur; yalnızca `send-mail` Edge Function'ı (service_role) çözebilir. Alıcı adresi istemciden alınmaz, veritabanındaki müşteri kaydından okunur.
+- **Denetim kaydı:** `audit_log` tablosu yalnızca kimlikleri (işletme, kullanıcı, kayıt) içerir; kişisel veri yazılmaz.
 - **Tarayıcı önbelleği:** Çevrimdışı salt okunur görüntüleme için son veriler işletme+kullanıcı anahtarıyla saklanır ve çıkışta silinir.
 
-Bilinen sınırlar (Google Sheets altyapısı nedeniyle): veritabanı düzeyinde kısıt veya satır düzeyi güvenlik yoktur, bu nedenle tüm erişim `code.gs`'teki tek veri erişim katmanından geçer. E-Tabloyu düzenleme yetkisi olan herkes (betik sahibi) tüm işletmelerin verisini görür.
-
 ---
 
-## Abonelik ve ödeme
+## Lisans ve yasal
 
-Ödeme sağlayıcısı entegrasyonu **yoktur**; uygulama gerçek ödeme alıyormuş gibi davranmaz. Hazır olan temel:
-
-- `Tenants` sayfasında `planId`, `subscriptionStatus`, `trialEndsAt`, `billingProvider`, `billingCustomerId`, `billingSubscriptionId`, `currentPeriodEnd` alanları.
-- `code.gs` içindeki `PLANS` kataloğu (kullanıcı sınırı davetlerde uygulanır).
-- Yeni işletmeler 30 günlük `trial` planla başlar; deneme süresi dolduğunda erişim **kısıtlanmaz** (ödeme altyapısı olmadan kilitleme yapılmaz).
-- Operatör planı `setTenantPlan()` ile elle yönetir.
-
-Entegrasyon yapılacaksa: sağlayıcının (ör. iyzico, Stripe) webhook'unu doğrulayan ayrı bir uç nokta, `subscriptionStatus`'a göre erişim kuralı ve gizli anahtarların Script Properties'te tutulması gerekir.
-
----
-
-## Lisans
-
-Önceki sürümün README'si projeyi "açık kaynak ve ücretsiz" olarak tanımlıyordu. Ürün ücretli satılacaksa lisans, kullanım koşulları ve KVKK aydınlatma metni satış öncesinde netleştirilmelidir.
+Ürün ücretli satılacağı için satış öncesinde lisans/kullanım koşulları, mesafeli satış sözleşmesi, KVKK aydınlatma metni ve (veriler yurt dışında barındırıldığı için) yurt dışına aktarım hükümleri netleştirilmelidir.

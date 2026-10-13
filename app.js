@@ -277,8 +277,9 @@ async function fetchData() {
 }
 
 /**
- * Sunucuya değişiklik gönderir ve başarılıysa işletme verilerini yeniler.
- * Başarıda sunucu yanıtını (ör. { id }) döndürür, hata durumunda false.
+ * Sunucuya değişiklik gönderir ve başarılıysa yalnızca değişen kaydı yerel duruma işler
+ * (tüm işletme verisi yeniden indirilmez).
+ * Başarıda sunucu yanıtını (ör. eklenen kayıt) döndürür, hata durumunda false.
  */
 async function sendRequest(action, payload) {
   if (platform.offline) {
@@ -288,7 +289,12 @@ async function sendRequest(action, payload) {
   setSyncStatus("syncing");
   try {
     const result = await apiCall(action, payload);
-    await fetchData();
+    if (applyLocalChange(action, payload, result)) {
+      setSyncStatus("connected");
+      renderAll();
+    } else {
+      await fetchData();
+    }
     return result || true;
   } catch (error) {
     if (!error.handled) {
@@ -747,6 +753,7 @@ function renderServices() {
 
       <div class="service-log-footer" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-muted); display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px;">
         ${customerPhone ? html`<a href="tel:${customerPhone}" class="btn btn-call btn-mini" title="Müşteriyi Ara">Ara</a>` : ""}
+        ${receiptMailButton(rec)}
         <button class="btn btn-secondary btn-mini" onclick="editServiceRecord('${rec.id}')">Düzenle</button>
         ${canDelete() ? html`<button class="btn btn-danger btn-mini" onclick="triggerDeleteServiceRecord('${rec.id}')">Sil</button>` : ""}
         <button class="btn btn-info btn-mini btn-toggle-details" onclick="toggleCardDetails('service', '${rec.id}', this)">Daha Fazla</button>
@@ -998,9 +1005,15 @@ async function handleCustomerSubmit(e) {
     firstName: document.getElementById("c_firstName").value.trim(),
     lastName: document.getElementById("c_lastName").value.trim(),
     phone: document.getElementById("c_phone").value.trim(),
+    email: document.getElementById("c_email").value.trim().toLowerCase(),
     reference: document.getElementById("c_reference").value.trim(),
     notes: document.getElementById("c_notes").value.trim()
   };
+  if (payload.email && !EMAIL_RE.test(payload.email)) {
+    showToast("Geçerli bir e-posta adresi girin veya alanı boş bırakın.", "warning");
+    document.getElementById("c_email").focus();
+    return;
+  }
 
   const btn = document.getElementById("btnSaveCustomer");
   if (btn) {
@@ -1706,6 +1719,7 @@ function renderRegPageList() {
       <div class="only-card-footer">
         <a href="tel:${c.phone}" class="btn btn-call btn-mini">Ara</a>
         <button type="button" class="btn btn-accent btn-mini" onclick="showCustomerHistory('${c.id}')">Geçmiş</button>
+        ${customerMailButton(c)}
         <button type="button" class="btn btn-secondary btn-mini" onclick="openCustomerEditModal('${c.id}')">Düzenle</button>
       </div>
     `;
@@ -1819,6 +1833,7 @@ function renderOnlyCustomers() {
         <button type="button" class="btn btn-accent btn-mini" onclick="showCustomerHistory('${c.id}')">
           İşlem Geçmişi
         </button>
+        ${customerMailButton(c)}
         <button type="button" class="btn btn-secondary btn-mini" onclick="openCustomerEditModal('${c.id}')">
           Düzenle
         </button>
@@ -2075,6 +2090,7 @@ function openCustomerEditModal(id) {
   document.getElementById("edit_c_firstName").value = c.firstName;
   document.getElementById("edit_c_lastName").value = c.lastName;
   document.getElementById("edit_c_phone").value = c.phone;
+  document.getElementById("edit_c_email").value = c.email || "";
   document.getElementById("edit_c_reference").value = c.reference || "";
   document.getElementById("edit_c_notes").value = c.notes || "";
   document.getElementById("customerEditModal").classList.remove("hidden");
@@ -2093,9 +2109,15 @@ async function handleCustomerEditSubmit(e) {
     firstName: document.getElementById("edit_c_firstName").value.trim(),
     lastName: document.getElementById("edit_c_lastName").value.trim(),
     phone: document.getElementById("edit_c_phone").value.trim(),
+    email: document.getElementById("edit_c_email").value.trim().toLowerCase(),
     reference: document.getElementById("edit_c_reference").value.trim(),
     notes: document.getElementById("edit_c_notes").value.trim()
   };
+  if (payload.email && !EMAIL_RE.test(payload.email)) {
+    showToast("Geçerli bir e-posta adresi girin veya alanı boş bırakın.", "warning");
+    document.getElementById("edit_c_email").focus();
+    return;
+  }
   
   const btn = document.getElementById("btnUpdateCustomer");
   btn.disabled = true;
@@ -2665,6 +2687,7 @@ function renderDebts() {
       <div class="service-log-footer" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-muted); display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px;">
         ${customerPhone ? html`<a href="tel:${customerPhone}" class="btn btn-call btn-mini" title="Ara">Ara</a>` : ""}
         <button class="btn btn-success btn-mini" onclick="markAsPaid('${rec.id}')">Tahsil Et (Ödendi)</button>
+        ${receiptMailButton(rec)}
         <button class="btn btn-secondary btn-mini" onclick="editServiceRecord('${rec.id}')">Düzenle</button>
         <button class="btn btn-info btn-mini btn-toggle-details" onclick="toggleCardDetails('debt', '${rec.id}', this)">Daha Fazla</button>
       </div>
