@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect width="170" height="150" x="15" y="25" rx="20" fill="none" stroke="url(#hondaGrad)" stroke-width="12"/>
+  <path d="M 45 45 L 65 45 L 65 145 L 45 145 M 155 45 L 135 45 L 135 145 L 155 145 M 65 95 L 135 95" fill="none" stroke="url(#hondaGrad)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="hondaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e6e6e6"/>
+      <stop offset="50%" stop-color="#999999"/>
+      <stop offset="100%" stop-color="#cccccc"/>
+    </linearGradient>
+  </defs>
+</svg>
