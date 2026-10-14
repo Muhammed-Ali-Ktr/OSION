@@ -366,3 +366,163 @@ async function handleMailComposeSubmit(event) {
     }
   });
 }
+
+// ==========================================================================
+// WHATSAPP (wa.me ile — işletmenin kendi WhatsApp'ından gönderilir)
+// ==========================================================================
+// Ek kurulum, API anahtarı veya ücret gerektirmez. Düğmeye basılınca müşterinin numarası
+// ve hazır mesaj ile WhatsApp (mobilde uygulama, bilgisayarda WhatsApp Web / Masaüstü) açılır;
+// işletme "Gönder"e basarak mesajı kendi hesabından iletir.
+
+/** Telefonu WhatsApp'ın istediği uluslararası biçime (yalnızca rakam, ülke kodlu) çevirir. */
+function whatsappNumber(phone) {
+  let d = String(phone || "").replace(/[^\d+]/g, "");
+  const international = d.startsWith("+") || d.startsWith("00");
+  d = d.replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (international) return d.length >= 8 && d.length <= 15 ? d : null;
+  if (/^0\d{10}$/.test(d)) return `90${d.slice(1)}`;   // 05551234567
+  if (/^\d{10}$/.test(d)) return `90${d}`;              // 5551234567
+  if (/^90\d{10}$/.test(d)) return d;                   // 905551234567
+  return null;
+}
+
+function openWhatsapp(phone, text) {
+  const number = whatsappNumber(phone);
+  if (!number) {
+    showToast("Müşterinin telefon numarası WhatsApp için geçerli değil. Numarayı düzeltin.", "warning");
+    return false;
+  }
+  const url = `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+  const win = window.open(url, "_blank", "noopener,noreferrer");
+  if (!win) window.location.href = url; // açılır pencere engellendiyse aynı sekmede aç
+  return true;
+}
+
+const WHATSAPP_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px;margin-right:3px"><path d="M17.5 14.4c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.4-2.3-1.4-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.4.1-.6l.4-.5c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.2-1.4-.1-.1-.3-.2-.6-.3zM12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2z"/></svg>`;
+
+function receiptWhatsappButton(rec) {
+  return html`<button type="button" class="btn btn-success btn-mini" onclick="sendServiceReceiptWhatsapp('${rec.id}')" title="Servis fişini araç sahibine WhatsApp ile gönder">${rawHtml(WHATSAPP_ICON)}WhatsApp</button>`;
+}
+
+function customerWhatsappButton(c) {
+  return html`<button type="button" class="btn btn-success btn-mini" onclick="openWhatsappCompose('${c.id}')" title="Müşteriye WhatsApp mesajı gönder">${rawHtml(WHATSAPP_ICON)}WhatsApp</button>`;
+}
+
+function whatsappReceiptText(rec, customer) {
+  const t = platform.tenant || {};
+  const vehicle = state.vehicles.find((v) => v.id === rec.vehicleId);
+  const total = parseFloat(rec.totalAmount) || 0;
+  const paid = getPaidAmount(rec);
+  const remaining = getRemainingAmount(rec);
+  const items = TECHNICIANS
+    .map((tech) => ({ label: tech.label, fee: Number(rec[tech.feeKey]) || 0, note: String(rec[tech.noteKey] || "").trim() }))
+    .filter((i) => i.fee > 0 || i.note);
+  const lines = [
+    `*${t.name || "Servis"}*`,
+    [t.phone, t.address].filter(Boolean).join(" · "),
+    "",
+    `Sayın ${customer.firstName} ${customer.lastName}, aracınıza yapılan işlemlerin özeti:`,
+    ""
+  ];
+  if (vehicle) lines.push(`*Araç:* ${vehicle.plate} — ${vehicle.brand} ${vehicle.model}`);
+  lines.push(`*Servis tarihi:* ${formatDate(rec.recordDate)}`);
+  lines.push(`*Giriş km:* ${Number(rec.entryKm).toLocaleString("tr-TR")} km`);
+  if (items.length) {
+    lines.push("", "*Yapılan işlemler*");
+    items.forEach((i) => lines.push(`• ${i.label}: ${formatMoney(i.fee)}${i.note ? ` (${i.note})` : ""}`));
+  }
+  if (rec.generalSummary) lines.push("", `*Açıklama:* ${rec.generalSummary}`);
+  lines.push("", `*Toplam:* ${formatMoney(total)}`, `*Ödenen:* ${formatMoney(paid)}`);
+  lines.push(`*Kalan:* ${formatMoney(remaining)}`, `*Ödeme durumu:* ${rec.paymentStatus}`);
+  lines.push("", "Teşekkür ederiz.");
+  return lines.filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n").trim();
+}
+
+function sendServiceReceiptWhatsapp(recordId) {
+  const rec = state.serviceRecords.find((r) => r.id === recordId);
+  if (!rec) return;
+  const customer = customerForRecord(rec);
+  if (!customer) return;
+  openWhatsapp(customer.phone, whatsappReceiptText(rec, customer));
+}
+
+// --- Müşteriye WhatsApp mesaj penceresi ---
+const whatsappComposeState = { customerId: null };
+
+function ensureWhatsappComposeModal() {
+  let modal = document.getElementById("whatsappComposeModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.className = "modal-backdrop hidden";
+  modal.id = "whatsappComposeModal";
+  modal.innerHTML = `
+    <div class="modal-content" style="width: 520px;">
+      <h2 class="card-title">Müşteriye WhatsApp</h2>
+      <p class="card-desc" id="whatsappComposeTo"></p>
+      <form id="whatsappComposeForm" novalidate>
+        <div class="form-group">
+          <span class="form-label">Hazır şablonlar</span>
+          <div class="mail-templates" id="whatsappComposeTemplates"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="whatsappComposeMessage">Mesaj *</label>
+          <textarea id="whatsappComposeMessage" class="form-control" rows="7" maxlength="3000" required></textarea>
+          <p class="field-hint">WhatsApp açılır; mesajı gözden geçirip WhatsApp içinden "Gönder"e basın.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="btnWhatsappComposeCancel">İptal</button>
+          <button type="submit" class="btn btn-success" id="btnWhatsappComposeSend">WhatsApp'ta Aç</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector("#btnWhatsappComposeCancel").addEventListener("click", closeWhatsappCompose);
+  modal.querySelector("#whatsappComposeForm").addEventListener("submit", handleWhatsappComposeSubmit);
+  return modal;
+}
+
+function openWhatsappCompose(customerId) {
+  const customer = state.customers.find((c) => c.id === customerId);
+  if (!customer) return;
+  if (!whatsappNumber(customer.phone)) {
+    showToast("Müşterinin telefon numarası WhatsApp için geçerli değil. Numarayı düzeltin.", "warning");
+    openCustomerEditModal(customer.id);
+    return;
+  }
+  const modal = ensureWhatsappComposeModal();
+  whatsappComposeState.customerId = customerId;
+  const form = modal.querySelector("#whatsappComposeForm");
+  form.reset();
+  clearFieldErrors(form);
+  modal.querySelector("#whatsappComposeTo").textContent = `Alıcı: ${customer.firstName} ${customer.lastName} (${customer.phone})`;
+  const box = modal.querySelector("#whatsappComposeTemplates");
+  box.innerHTML = "";
+  mailTemplates(customer).forEach((tpl) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-secondary btn-mini";
+    btn.textContent = tpl.label;
+    btn.addEventListener("click", () => {
+      modal.querySelector("#whatsappComposeMessage").value = `Sayın ${customer.firstName} ${customer.lastName},\n\n${tpl.message}`;
+    });
+    box.appendChild(btn);
+  });
+  modal.classList.remove("hidden");
+  modal.querySelector("#whatsappComposeMessage").focus();
+}
+
+function closeWhatsappCompose() {
+  const modal = document.getElementById("whatsappComposeModal");
+  if (modal) modal.classList.add("hidden");
+  whatsappComposeState.customerId = null;
+}
+
+function handleWhatsappComposeSubmit(event) {
+  event.preventDefault();
+  clearFieldErrors(event.currentTarget);
+  const message = fieldValue("whatsappComposeMessage");
+  if (applyFieldErrors(message.length < 2 ? { whatsappComposeMessage: "Mesaj girin." } : {})) return;
+  const customer = state.customers.find((c) => c.id === whatsappComposeState.customerId);
+  if (customer && openWhatsapp(customer.phone, message)) closeWhatsappCompose();
+}

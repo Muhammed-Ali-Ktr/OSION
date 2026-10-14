@@ -753,6 +753,7 @@ function renderServices() {
 
       <div class="service-log-footer" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-muted); display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px;">
         ${customerPhone ? html`<a href="tel:${customerPhone}" class="btn btn-call btn-mini" title="Müşteriyi Ara">Ara</a>` : ""}
+        ${customerPhone ? receiptWhatsappButton(rec) : ""}
         ${receiptMailButton(rec)}
         <button class="btn btn-secondary btn-mini" onclick="editServiceRecord('${rec.id}')">Düzenle</button>
         ${canDelete() ? html`<button class="btn btn-danger btn-mini" onclick="triggerDeleteServiceRecord('${rec.id}')">Sil</button>` : ""}
@@ -1719,6 +1720,7 @@ function renderRegPageList() {
       <div class="only-card-footer">
         <a href="tel:${c.phone}" class="btn btn-call btn-mini">Ara</a>
         <button type="button" class="btn btn-accent btn-mini" onclick="showCustomerHistory('${c.id}')">Geçmiş</button>
+        ${customerWhatsappButton(c)}
         ${customerMailButton(c)}
         <button type="button" class="btn btn-secondary btn-mini" onclick="openCustomerEditModal('${c.id}')">Düzenle</button>
       </div>
@@ -1833,6 +1835,7 @@ function renderOnlyCustomers() {
         <button type="button" class="btn btn-accent btn-mini" onclick="showCustomerHistory('${c.id}')">
           İşlem Geçmişi
         </button>
+        ${customerWhatsappButton(c)}
         ${customerMailButton(c)}
         <button type="button" class="btn btn-secondary btn-mini" onclick="openCustomerEditModal('${c.id}')">
           Düzenle
@@ -2687,6 +2690,7 @@ function renderDebts() {
       <div class="service-log-footer" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-muted); display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px;">
         ${customerPhone ? html`<a href="tel:${customerPhone}" class="btn btn-call btn-mini" title="Ara">Ara</a>` : ""}
         <button class="btn btn-success btn-mini" onclick="markAsPaid('${rec.id}')">Tahsil Et (Ödendi)</button>
+        ${customerPhone ? receiptWhatsappButton(rec) : ""}
         ${receiptMailButton(rec)}
         <button class="btn btn-secondary btn-mini" onclick="editServiceRecord('${rec.id}')">Düzenle</button>
         <button class="btn btn-info btn-mini btn-toggle-details" onclick="toggleCardDetails('debt', '${rec.id}', this)">Daha Fazla</button>
