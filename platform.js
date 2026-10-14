@@ -391,7 +391,11 @@ const API_ACTIONS = {
       if (err.context.status === 401) throw new ApiError("Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.", "AUTH_REQUIRED");
       if (err.context.status === 404) throw new ApiError("E-posta servisi henüz kurulmamış (send-mail). Hizmet sağlayıcınızla iletişime geçin.", "MAIL_NOT_CONFIGURED");
     }
-    if (err.name === "FunctionsFetchError") throw new ApiError(NETWORK_MESSAGE, "NETWORK");
+    if (err.name === "FunctionsFetchError") {
+      // Fonksiyon kurulu değilse veya çöktüyse tarayıcı CORS ön kontrolünü de "bağlantı hatası" olarak bildirir.
+      if (navigator.onLine === false) throw new ApiError(NETWORK_MESSAGE, "NETWORK");
+      throw new ApiError("E-posta servisine ulaşılamadı (send-mail fonksiyonu kurulu değil veya yanıt vermiyor). Hizmet sağlayıcınızla iletişime geçin.", "MAIL_UNAVAILABLE");
+    }
     throw toApiError(err);
   },
   changePassword: async (p) => {

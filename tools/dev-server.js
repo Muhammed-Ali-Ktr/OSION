@@ -18,11 +18,13 @@ const ROOT = path.resolve(__dirname, "..", SERVE_DIST ? "dist" : "");
 const PORT = Number(args[args.indexOf("--port") + 1]) || Number(process.env.PORT) || 8787;
 
 const PUBLIC_FILES = new Set(["index.html", "style.css", "app.js", "platform.js", "mail.js", "config.js",
-  "favicon.svg", "legal.css", "kullanim-kosullari.html", "gizlilik.html"]);
-const PUBLIC_DIRS = ["car logo"];
+  "favicon.svg", "favicon.ico", "manifest.webmanifest", "robots.txt", "sitemap.xml", "legal.css", "kullanim-kosullari.html", "gizlilik.html"]);
+const PUBLIC_DIRS = ["car logo", "icons"];
 const MIME = {
   ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-  ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".webp": "image/webp"
+  ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".webp": "image/webp",
+  ".ico": "image/x-icon", ".webmanifest": "application/manifest+json",
+  ".txt": "text/plain; charset=utf-8", ".xml": "application/xml; charset=utf-8"
 };
 
 function resolvePublic(urlPath) {

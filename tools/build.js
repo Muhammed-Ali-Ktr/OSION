@@ -16,10 +16,10 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 const FILES = [
-  "index.html", "style.css", "config.js", "platform.js", "app.js", "mail.js", "favicon.svg",
-  "kullanim-kosullari.html", "gizlilik.html", "legal.css"
+  "index.html", "style.css", "config.js", "platform.js", "app.js", "mail.js", "favicon.svg", "favicon.ico",
+  "manifest.webmanifest", "robots.txt", "sitemap.xml", "kullanim-kosullari.html", "gizlilik.html", "legal.css"
 ];
-const DIRS = ["car logo"];
+const DIRS = ["car logo", "icons"];
 
 function fail(message) {
   console.error(`Derleme hatası: ${message}`);

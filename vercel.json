@@ -17,7 +17,7 @@
       ]
     },
     {
-      "source": "/(index.html|config.js|platform.js|app.js|mail.js|style.css)",
+      "source": "/(index.html|config.js|platform.js|app.js|mail.js|style.css|manifest.webmanifest)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]

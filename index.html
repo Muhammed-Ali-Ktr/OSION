@@ -5,9 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSION - Servis Takip</title>
   <meta name="description" content="Oto servisleri için müşteri, araç, servis kaydı, borç ve gelir takip uygulaması.">
-  <meta name="theme-color" content="#1f6feb">
+  <meta name="theme-color" content="#1c64d3">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="application-name" content="OSION">
+  <meta name="apple-mobile-web-app-title" content="OSION">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="OSION">
+  <meta property="og:title" content="OSION - Servis Takip">
+  <meta property="og:description" content="Oto servisleri için müşteri, araç, servis kaydı, borç ve gelir takip uygulaması.">
+  <meta property="og:url" content="https://osion.ziftstudio.site/">
+  <meta property="og:image" content="https://osion.ziftstudio.site/icons/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="OSION logosu">
+  <meta property="og:locale" content="tr_TR">
+  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://osion.ziftstudio.site/">
+  <!-- Ana logo: sekme ikonu, arama sonuçları ve telefona yüklenen uygulama ikonu -->
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
 
   <!-- Fontlar ve Stil -->
   <link rel="stylesheet" href="style.css">
@@ -22,6 +42,7 @@
 
   <!-- ==================== AÇILIŞ / YÜKLENİYOR ==================== -->
   <div class="boot-screen" id="bootScreen">
+    <img class="boot-logo" src="icons/logo-mark.png" alt="" width="56" height="56">
     <div class="spinner" aria-hidden="true"></div>
     <p>Yükleniyor…</p>
   </div>
@@ -42,22 +63,37 @@
   <div class="auth-shell hidden" id="authScreen">
     <div class="auth-layout">
       <section class="auth-intro">
+        <div class="auth-intro-rings" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="auth-brand">
-          <div class="logo-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-          </div>
+          <span class="brand-mark"><img src="icons/logo-mark.png" alt="" width="28" height="28"></span>
           <span data-product-name>OSION</span>
         </div>
-        <h1 class="auth-intro-title">Servisinizin tüm kayıtları tek panelde.</h1>
-        <p class="auth-intro-text">Müşteri, araç, servis girişi, borç ve gelir takibi. Her işletmenin verisi yalnızca kendi ekibine açıktır.</p>
-        <ul class="auth-feature-list">
-          <li>Müşteri ve araç kartları, marka klasörleri</li>
-          <li>Usta bazlı servis girişi ve ödeme takibi</li>
-          <li>Ekip arkadaşlarınızı rol bazlı davet edin</li>
-        </ul>
+        <div class="auth-intro-body">
+          <span class="auth-eyebrow">Oto servis yönetim platformu</span>
+          <h1 class="auth-intro-title">Servisinizin tüm kayıtları tek panelde.</h1>
+          <p class="auth-intro-text">Müşteri, araç, servis girişi, borç ve gelir takibi. Her işletmenin verisi yalnızca kendi ekibine açıktır.</p>
+          <ul class="auth-feature-list">
+            <li>
+              <span class="auth-feature-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+              <span><strong>Müşteri ve araç kartları</strong>Marka klasörleriyle düzenli arşiv</span>
+            </li>
+            <li>
+              <span class="auth-feature-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+              <span><strong>Servis ve ödeme takibi</strong>Usta bazlı iş girişi, borç ve gelir</span>
+            </li>
+            <li>
+              <span class="auth-feature-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+              <span><strong>Ekip ve yetkiler</strong>Çalışanlarınızı rol bazlı davet edin</span>
+            </li>
+          </ul>
+        </div>
+        <div class="auth-intro-foot">
+          <img class="zift-signature" src="icons/zift-studio.png" alt="Zift Studio — Developed by Muhammet Ali Kıtır" width="184" height="54">
+        </div>
       </section>
 
-      <section class="auth-card panel-card">
+      <section class="auth-main">
+      <div class="auth-card">
         <div class="auth-tabs" role="tablist" aria-label="Giriş seçenekleri">
           <button type="button" class="auth-tab active" role="tab" data-auth-tab="login" onclick="showAuthTab('login')">Giriş Yap</button>
           <button type="button" class="auth-tab" role="tab" data-auth-tab="register" onclick="showAuthTab('register')">İşletme Oluştur</button>
@@ -176,7 +212,9 @@
           <div class="tenant-choice-list" id="tenantChoiceList"></div>
           <button type="button" class="btn btn-secondary btn-block" onclick="logout()">Çıkış Yap</button>
         </div>
+      </div>
         <p class="auth-legal-links"><a href="kullanim-kosullari.html" target="_blank" rel="noopener">Kullanım Koşulları</a> · <a href="gizlilik.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a></p>
+        <img class="zift-signature auth-credit-mobile" src="icons/zift-studio.png" alt="Zift Studio — Developed by Muhammet Ali Kıtır" width="150" height="44">
       </section>
     </div>
   </div>
@@ -185,9 +223,7 @@
   <div class="setup-shell hidden" id="setupScreen">
     <header class="setup-topbar">
       <div class="auth-brand">
-        <div class="logo-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        </div>
+        <span class="brand-mark"><img src="icons/logo-mark.png" alt="" width="28" height="28"></span>
         <span data-product-name>OSION</span>
       </div>
       <div class="setup-user">
@@ -247,7 +283,7 @@
       <div class="logo-icon tenant-logo" id="tenantLogo" aria-hidden="true"></div>
       <div class="sidebar-brand-text">
         <div class="logo-text" id="tenantNameText"></div>
-        <div class="sidebar-brand-sub" data-product-name>OSION</div>
+        <div class="sidebar-brand-sub sidebar-product"><img src="icons/logo-mark.png" alt="" width="14" height="14"><span data-product-name>OSION</span></div>
       </div>
     </div>
     
@@ -385,6 +421,8 @@
         <div class="status-dot" id="apiStatusDot"></div>
         <span id="apiStatusText">Bağlanıyor…</span>
       </div>
+
+      <img class="zift-signature sidebar-credit" src="icons/zift-studio.png" alt="Zift Studio — Developed by Muhammet Ali Kıtır" width="120" height="35">
     </div>
   </aside>
 

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sayfa içeriği değiştiğinde ilgili <lastmod> tarihini güncelleyin (YYYY-AA-GG). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://osion.ziftstudio.site/</loc>
+    <lastmod>2026-10-14</lastmod>
+  </url>
+  <url>
+    <loc>https://osion.ziftstudio.site/kullanim-kosullari</loc>
+    <lastmod>2026-10-14</lastmod>
+  </url>
+  <url>
+    <loc>https://osion.ziftstudio.site/gizlilik</loc>
+    <lastmod>2026-10-14</lastmod>
+  </url>
+</urlset>

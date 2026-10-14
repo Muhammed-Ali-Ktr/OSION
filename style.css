@@ -2582,25 +2582,40 @@ body:not(.role-owner) .owner-only {
 }
 
 /* --- Giriş / kayıt --- */
+/* Sol: marka paneli (her iki temada da koyu mavi), sağ: form alanı. */
 .auth-shell {
+  --brand: #1c64d3;
+  --brand-deep: #0a2a66;
+  --brand-ink: #061a42;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 16px;
-  background:
-    radial-gradient(1200px 500px at 10% -10%, var(--accent-bg), transparent 60%),
-    var(--bg-canvas);
+  background: var(--bg-canvas);
 }
 
 .auth-layout {
-  width: 100%;
-  max-width: 1040px;
+  min-height: inherit;
   display: grid;
-  grid-template-columns: 1fr minmax(0, 440px);
-  gap: 48px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+}
+
+/* Logo halkası her yerde aynı beyaz kutuda durur; mavi halka koyu zeminde de okunur. */
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #ffffff;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(6, 26, 66, 0.12), inset 0 0 0 1px rgba(6, 26, 66, 0.06);
+}
+
+.brand-mark img {
+  width: 26px;
+  height: 26px;
+  display: block;
 }
 
 .auth-brand {
@@ -2608,53 +2623,154 @@ body:not(.role-owner) .owner-only {
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.3px;
+  font-size: 19px;
+  letter-spacing: 0.04em;
 }
 
-.auth-intro-title {
-  font-size: 34px;
-  line-height: 1.2;
-  font-weight: 700;
-  letter-spacing: -0.8px;
-  margin: 28px 0 12px;
+.auth-intro {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+  padding: 44px clamp(32px, 5vw, 72px) 36px;
+  color: #ffffff;
+  background:
+    radial-gradient(900px 520px at 100% 0%, rgba(78, 145, 255, 0.35), transparent 60%),
+    linear-gradient(160deg, var(--brand) 0%, var(--brand-deep) 58%, var(--brand-ink) 100%);
+}
+
+/* Logodaki halkayı tekrarlayan dekoratif halkalar. */
+.auth-intro-rings span {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.09);
+  pointer-events: none;
+}
+
+.auth-intro-rings span:nth-child(1) { width: 560px; height: 560px; right: -220px; top: -180px; border-width: 56px; border-color: rgba(255, 255, 255, 0.05); }
+.auth-intro-rings span:nth-child(2) { width: 300px; height: 300px; right: -60px; bottom: -120px; }
+.auth-intro-rings span:nth-child(3) { width: 120px; height: 120px; left: 46%; top: 18%; border-color: rgba(255, 255, 255, 0.06); }
+
+.auth-intro > *:not(.auth-intro-rings) {
+  position: relative;
+}
+
+.auth-intro-body {
   max-width: 520px;
 }
 
+.auth-eyebrow {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #dbe8ff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.auth-intro-title {
+  font-size: clamp(30px, 3.4vw, 42px);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 18px 0 14px;
+  text-wrap: balance;
+}
+
 .auth-intro-text {
-  color: var(--text-secondary);
+  color: rgba(226, 236, 255, 0.82);
   font-size: 16px;
-  max-width: 500px;
+  line-height: 1.6;
+  max-width: 460px;
 }
 
 .auth-feature-list {
   list-style: none;
-  margin-top: 24px;
+  margin-top: 32px;
   display: grid;
-  gap: 10px;
-  color: var(--text-secondary);
-  font-size: 14px;
+  gap: 18px;
 }
 
 .auth-feature-list li {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 14px;
+  font-size: 14px;
+  color: rgba(226, 236, 255, 0.75);
 }
 
-.auth-feature-list li::before {
-  content: "";
+.auth-feature-list strong {
+  display: block;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 1px;
+}
+
+.auth-feature-icon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.auth-feature-icon svg {
   width: 18px;
   height: 18px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--success-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232ea043' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center / 11px no-repeat;
-  border: 1px solid var(--success-border);
+}
+
+.auth-intro-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* İmza görseli beyaz yazılı ve şeffaf zeminlidir. */
+.zift-signature {
+  display: block;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.auth-intro-foot .zift-signature {
+  width: 184px;
+  opacity: 0.88;
+}
+
+.auth-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px 32px;
 }
 
 .auth-card {
-  padding: 24px;
-  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth-credit-mobile {
+  display: none;
+  filter: brightness(0);
+  opacity: 0.4;
+}
+
+[data-theme="dark"] .auth-credit-mobile {
+  filter: none;
+  opacity: 0.5;
 }
 
 .auth-tabs {
@@ -2664,19 +2780,20 @@ body:not(.role-owner) .owner-only {
   padding: 4px;
   background: var(--bg-subtle);
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  margin-bottom: 20px;
+  border-radius: 10px;
+  margin-bottom: 28px;
 }
 
 .auth-tab {
   border: none;
   background: transparent;
-  padding: 8px 6px;
-  border-radius: 4px;
+  padding: 9px 6px;
+  border-radius: 7px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
+  transition: color 0.15s, background-color 0.15s, box-shadow 0.15s;
 }
 
 .auth-tab:hover {
@@ -2686,13 +2803,57 @@ body:not(.role-owner) .owner-only {
 .auth-tab.active {
   background: var(--bg-surface);
   color: var(--text-primary);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.12), 0 0 0 1px var(--border-color);
+}
+
+.auth-tab:focus-visible,
+.auth-shell .btn:focus-visible,
+.auth-shell .link-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.auth-shell .form-control {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background-color: var(--bg-surface);
+}
+
+.auth-shell .form-control:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px rgba(28, 100, 211, 0.15);
+}
+
+.auth-shell .form-label {
+  font-weight: 600;
+}
+
+/* Giriş ekranındaki ana düğmeler marka mavisiyle. */
+.auth-shell .btn-primary {
+  min-height: 46px;
+  border-radius: 8px;
+  font-weight: 600;
+  background: var(--brand);
+  border-color: var(--brand);
+  box-shadow: 0 1px 2px rgba(6, 26, 66, 0.2), 0 4px 12px rgba(28, 100, 211, 0.25);
+}
+
+.auth-shell .btn-primary:hover {
+  filter: none;
+  background: #1655b8;
+}
+
+.auth-shell .btn-secondary {
+  min-height: 44px;
+  border-radius: 8px;
 }
 
 .auth-form-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
 }
 
 .auth-form-desc {
@@ -3019,6 +3180,46 @@ body:not(.role-owner) .owner-only {
   font-weight: 500;
 }
 
+.sidebar-product {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.04em;
+}
+
+.sidebar-product img {
+  width: 14px;
+  height: 14px;
+}
+
+/* İmza beyaz yazılıdır: açık temada koyulaştırılır, koyu temada olduğu gibi kullanılır. */
+.sidebar-credit {
+  width: 112px;
+  margin: 6px auto 0;
+  filter: brightness(0);
+  opacity: 0.38;
+  transition: opacity 0.15s;
+}
+
+.sidebar-credit:hover {
+  opacity: 0.7;
+}
+
+[data-theme="dark"] .sidebar-credit {
+  filter: none;
+  opacity: 0.45;
+}
+
+[data-theme="dark"] .sidebar-credit:hover {
+  opacity: 0.8;
+}
+
+.boot-logo {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 6px;
+}
+
 .user-card {
   display: flex;
   align-items: center;
@@ -3343,17 +3544,37 @@ body.is-offline #btnSaveService {
     grid-template-columns: 1fr;
   }
 
-  .auth-layout {
-    gap: 24px;
+  /* Telefonda marka paneli üstte kısa bir bant olur; imza formun altına iner. */
+  .auth-intro {
+    gap: 0;
+    padding: 22px 20px 26px;
   }
 
   .auth-intro-title {
-    font-size: 26px;
-    margin-top: 18px;
+    font-size: 22px;
+    margin: 14px 0 0;
   }
 
-  .auth-feature-list {
+  .auth-eyebrow,
+  .auth-intro-text,
+  .auth-feature-list,
+  .auth-intro-foot {
     display: none;
+  }
+
+  .auth-intro-rings span:nth-child(1) { width: 300px; height: 300px; right: -120px; top: -140px; border-width: 36px; }
+  .auth-intro-rings span:nth-child(2),
+  .auth-intro-rings span:nth-child(3) { display: none; }
+
+  .auth-main {
+    justify-content: flex-start;
+    padding: 28px 16px 28px;
+  }
+
+  .auth-credit-mobile {
+    display: block;
+    width: 150px;
+    margin: 22px auto 0;
   }
 
   .setup-preview {
@@ -3372,12 +3593,12 @@ body.is-offline #btnSaveService {
     gap: 0;
   }
 
-  .auth-card {
-    padding: 18px;
-  }
-
   .auth-tab {
     font-size: 12px;
+  }
+
+  .auth-form-title {
+    font-size: 21px;
   }
 
   .setup-topbar {
