@@ -17,9 +17,9 @@ const SERVE_DIST = args.includes("--dist");
 const ROOT = path.resolve(__dirname, "..", SERVE_DIST ? "dist" : "");
 const PORT = Number(args[args.indexOf("--port") + 1]) || Number(process.env.PORT) || 8787;
 
-const PUBLIC_FILES = new Set(["index.html", "style.css", "app.js", "platform.js", "mail.js", "config.js",
+const PUBLIC_FILES = new Set(["index.html", "site.css", "site.js", "panel.html", "admin.html", "admin.css", "admin.js", "style.css", "app.js", "platform.js", "catalog.js", "scanner.js", "mail.js", "config.js",
   "favicon.svg", "favicon.ico", "manifest.webmanifest", "robots.txt", "sitemap.xml", "legal.css", "kullanim-kosullari.html", "gizlilik.html"]);
-const PUBLIC_DIRS = ["car logo", "icons"];
+const PUBLIC_DIRS = ["car logo", "icons", "vendor"];
 const MIME = {
   ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
   ".png": "image/png", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".webp": "image/webp",
@@ -28,7 +28,9 @@ const MIME = {
 };
 
 function resolvePublic(urlPath) {
-  const rel = decodeURIComponent(urlPath.split("?")[0]).replace(/^\/+/, "") || "index.html";
+  let rel = decodeURIComponent(urlPath.split("?")[0]).replace(/^\/+/, "").replace(/\/+$/, "") || "index.html";
+  // Vercel "cleanUrls" gibi: /panel → panel.html
+  if (!path.extname(rel)) rel += ".html";
   const full = path.resolve(ROOT, rel);
   if (!full.startsWith(ROOT + path.sep)) return null;
   const relNorm = path.relative(ROOT, full).split(path.sep).join("/");

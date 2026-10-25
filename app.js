@@ -16,15 +16,8 @@ const state = {
   currentView: 'dashboard'
 };
 
-// Bilinen Yaygın Araç Markaları (Klasör Gruplamaları için)
-const KNOWN_BRANDS = [
-  'Volkswagen', 'Fiat', 'Toyota', 'Opel', 'Renault', 'Ford', 
-  'Hyundai', 'BMW', 'Mercedes-Benz', 'Peugeot', 'Citroën', 
-  'Honda', 'Nissan', 'Seat', 'Skoda', 'Audi', 'Kia'
-];
-
-// Marka Amblem/Logo Yolları Eşleştirmesi
-const BRAND_LOGOS = {
+// Logosu bulunan markalar (anahtar: catalogKey — "Skoda" ve "Škoda" aynı logoyu kullanır)
+const BRAND_LOGOS_BY_KEY = new Map(Object.entries({
   'Volkswagen': 'car logo/volkswagen.png',
   'Fiat': 'car logo/fiat.svg',
   'Toyota': 'car logo/toyota.png',
@@ -39,28 +32,13 @@ const BRAND_LOGOS = {
   'Honda': 'car logo/honda.svg',
   'Nissan': 'car logo/nissan.png',
   'Seat': 'car logo/seat.svg',
-  'Skoda': 'car logo/skoda.png',
+  'Škoda': 'car logo/skoda.png',
   'Audi': 'car logo/audi.png',
   'Kia': 'car logo/kia.svg'
-};
+}).map(([brand, src]) => [catalogKey(brand), src]));
 
+// Araçlar sayfasında seçili marka klasörü: 'ALL' veya marka anahtarı (catalogKey)
 let activeBrandFolder = 'ALL';
-
-function handleBrandSelectChange(selectId, customGroupId, customInputId) {
-  const select = document.getElementById(selectId);
-  const customGroup = document.getElementById(customGroupId);
-  const customInput = document.getElementById(customInputId);
-  
-  if (!select || !customGroup) return;
-  
-  if (select.value === "OTHER_CUSTOM") {
-    customGroup.classList.remove("hidden");
-    if (customInput) customInput.focus();
-  } else {
-    customGroup.classList.add("hidden");
-    if (customInput) customInput.value = "";
-  }
-}
 
 // Grafik Örnekleri (Chart.js)
 let monthlyChart = null;
@@ -987,6 +965,7 @@ function openNewVehicleModal() {
     
     const dateEl = document.getElementById("v_entryDate");
     if (dateEl) dateEl.value = todayIso();
+    fillVehicleFields("v");
 
     clearCustomerCombobox('v_customerId', 'v_customerSearchInput', 'v_customerClearBtn', 'v_customerSelectedBadge');
 
@@ -1049,26 +1028,22 @@ async function handleCustomerSubmit(e) {
 async function handleVehicleSubmit(e) {
   e.preventDefault();
 
-  const brandSelect = document.getElementById("v_brand_select");
-  const customBrandInput = document.getElementById("v_custom_brand");
-  let brandValue = "";
-  if (brandSelect) {
-    if (brandSelect.value === "OTHER_CUSTOM") {
-      brandValue = customBrandInput ? customBrandInput.value.trim() : "";
-    } else {
-      brandValue = brandSelect.value;
-    }
-  }
-
-  if (!brandValue) {
+  const fields = readVehicleFields("v");
+  if (!fields.brand) {
     showToast("Lütfen araç markasını seçin veya yazın.", "warning");
+    document.getElementById("v_brand").focus();
     return;
   }
+  if (!fields.model) {
+    showToast("Lütfen araç modelini seçin veya yazın.", "warning");
+    document.getElementById("v_model").focus();
+    return;
+  }
+  rememberVehicleCatalogEntry(fields.brand, fields.model);
 
   const payload = {
     customerId: document.getElementById("v_customerId").value,
-    brand: brandValue,
-    model: document.getElementById("v_model").value.trim(),
+    ...fields,
     plate: document.getElementById("v_plate").value.trim().replace(/\s+/g, ""),
     chassisNo: document.getElementById("v_chassis").value.trim(),
     entryDate: document.getElementById("v_entryDate").value,
@@ -1863,103 +1838,157 @@ function filterOnlyCustomers() {
 // ==========================================================================
 // ARAÇLAR SAYFASI RENDER VE MARKA KLASÖRLERİ MANTIGI
 // ==========================================================================
+const VEH_ICONS = {
+  phone: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+  history: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 14"/></svg>`,
+  edit: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  trash: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  user: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  calendar: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  note: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+  grid: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`
+};
+
+/** Plakayı Türkiye biçiminde gruplar: 42MAK88 → 42 MAK 88 */
+function formatPlate(plate) {
+  const p = String(plate || "").toUpperCase().replace(/\s+/g, "");
+  const m = /^(\d{2})([A-Z]{1,3})(\d{2,5})$/.exec(p);
+  return m ? `${m[1]} ${m[2]} ${m[3]}` : p;
+}
+
+/** Araçları markaya göre gruplar: [{ key, name, count }] — çok araçlı markalar önce. */
+function vehicleBrandGroups() {
+  const groups = new Map();
+  state.vehicles.forEach(v => {
+    const key = catalogKey(v.brand);
+    if (!key) return;
+    const g = groups.get(key) || { key, name: canonicalBrandName(v.brand), count: 0 };
+    g.count++;
+    groups.set(key, g);
+  });
+  // Logosu olan yaygın markalar araç olmasa da (soluk) gösterilir.
+  BRAND_LOGOS_BY_KEY.forEach((_, key) => {
+    if (!groups.has(key)) groups.set(key, { key, name: BUILTIN_BRAND_BY_KEY.get(key) || key, count: 0 });
+  });
+  return [...groups.values()].sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name, "tr"));
+}
+
+function brandFolderButton({ key, name, count, iconHtml }) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = `brand-card${activeBrandFolder === key ? ' active' : ''}${count ? ' has-items' : ' is-empty'}`;
+  btn.title = `${name} (${count} araç)`;
+  btn.setAttribute("aria-pressed", String(activeBrandFolder === key));
+  btn.innerHTML = html`
+    <span class="brand-card-count">${count}</span>
+    <span class="brand-card-logo-wrap">${rawHtml(iconHtml)}</span>
+    <span class="brand-card-name">${name}</span>
+  `;
+  btn.onclick = () => selectBrandFolder(key);
+  return btn;
+}
+
 function renderBrandFolders() {
   const container = document.getElementById("brandFoldersContainer");
   if (!container) return;
   container.innerHTML = "";
 
-  // Markalara göre araç sayılarını hesapla
-  const brandCounts = {};
-  let otherCount = 0;
+  container.appendChild(brandFolderButton({
+    key: 'ALL', name: 'Tümü', count: state.vehicles.length,
+    iconHtml: `<span class="brand-card-icon">${VEH_ICONS.grid}</span>`
+  }));
 
-  state.vehicles.forEach(v => {
-    const b = (v.brand || "").trim();
-    const matchedBrand = KNOWN_BRANDS.find(kb => kb.toLowerCase() === b.toLowerCase());
-    if (matchedBrand) {
-      brandCounts[matchedBrand] = (brandCounts[matchedBrand] || 0) + 1;
-    } else {
-      otherCount++;
-    }
+  vehicleBrandGroups().forEach(g => {
+    const logo = brandLogoSrc(g.name);
+    const iconHtml = logo
+      ? html`<img src="${logo}" alt="" class="brand-card-logo" loading="lazy">`.toString()
+      : html`<span class="brand-card-initials">${initials(g.name)}</span>`.toString();
+    container.appendChild(brandFolderButton({ ...g, iconHtml }));
   });
 
-  // 1. Tüm Markalar Kartı
-  const allCard = document.createElement("button");
-  allCard.type = "button";
-  allCard.className = `brand-card ${activeBrandFolder === 'ALL' ? 'active' : ''}`;
-  allCard.innerHTML = html`
-    <span class="brand-card-count">${state.vehicles.length}</span>
-    <div class="brand-card-logo-wrap">
-      <svg class="brand-card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-    </div>
-    <span class="brand-card-name">Tüm Markalar</span>
-  `;
-  allCard.onclick = () => selectBrandFolder('ALL');
-  container.appendChild(allCard);
-
-  // 2. Bilinen Yaygın Marka Kartları
-  KNOWN_BRANDS.forEach(b => {
-    const count = brandCounts[b] || 0;
-    const logoSrc = BRAND_LOGOS[b] || '';
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `brand-card ${activeBrandFolder === b ? 'active' : ''}`;
-    card.title = b;
-    
-    let logoHtml = '';
-    if (logoSrc) {
-      logoHtml = html`<img src="${logoSrc}" alt="${b}" class="brand-card-logo" onerror="this.onerror=null; this.parentElement.innerHTML='<span style=\'font-size:26px;\'>🚗</span>';" />`;
-    } else {
-      logoHtml = html`<span style="font-size:26px;">🚗</span>`;
-    }
-
-    card.innerHTML = html`
-      <span class="brand-card-count">${count}</span>
-      <div class="brand-card-logo-wrap">
-        ${logoHtml}
-      </div>
-      <span class="brand-card-name">${b}</span>
-    `;
-    card.onclick = () => selectBrandFolder(b);
-    container.appendChild(card);
-  });
-
-  // 3. Diğer Markalar Kartı
-  const otherCard = document.createElement("button");
-  otherCard.type = "button";
-  otherCard.className = `brand-card ${activeBrandFolder === 'OTHER' ? 'active' : ''}`;
-  otherCard.innerHTML = html`
-    <span class="brand-card-count">${otherCount}</span>
-    <div class="brand-card-logo-wrap">
-      <svg class="brand-card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-1.38-2.3A2 2 0 0 0 7.37 2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z"/></svg>
-    </div>
-    <span class="brand-card-name">Diğer Markalar</span>
-  `;
-  otherCard.onclick = () => selectBrandFolder('OTHER');
-  container.appendChild(otherCard);
+  // Seçili marka mobil şeritte görünür alana kaydırılır.
+  const active = container.querySelector(".brand-card.active");
+  if (active && container.scrollWidth > container.clientWidth) {
+    container.scrollLeft = active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2;
+  }
 }
 
 function selectBrandFolder(brandFolder) {
-  activeBrandFolder = brandFolder;
+  activeBrandFolder = activeBrandFolder === brandFolder && brandFolder !== 'ALL' ? 'ALL' : brandFolder;
   renderOnlyVehicles();
+  filterOnlyVehicles();
+}
+
+function goToCustomerCard(customerId) {
+  switchView('only-customers');
+  setTimeout(() => {
+    const card = document.getElementById(`only-cust-card-${customerId}`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.style.borderColor = 'var(--accent)';
+      setTimeout(() => card.style.borderColor = '', 2000);
+    }
+  }, 150);
+}
+
+function vehicleCardHtml(v) {
+  const owner = state.customers.find(c => c.id === v.customerId);
+  const ownerName = owner ? `${owner.firstName} ${owner.lastName}` : "Bilinmeyen müşteri";
+  const ownerPhone = owner ? owner.phone : "";
+  const serviceCount = state.serviceRecords.filter(s => s.vehicleId === v.id).length;
+  const brandName = canonicalBrandName(v.brand);
+  const logo = brandLogoSrc(brandName);
+  const sub = [v.modelYear ? `${v.modelYear} model` : "", serviceCount ? `${serviceCount} servis kaydı` : "Servis kaydı yok"].filter(Boolean).join(" · ");
+
+  return html`
+    <header class="veh-card-head">
+      <span class="veh-card-logo">${logo ? html`<img src="${logo}" alt="" loading="lazy">` : html`<span>${initials(brandName)}</span>`}</span>
+      <div class="veh-card-heading">
+        <h3 class="veh-card-title">${brandName} ${v.model}</h3>
+        <div class="veh-card-sub">${sub}</div>
+      </div>
+      <span class="plate-badge" title="Plaka"><span class="plate-badge-tr" aria-hidden="true">TR</span>${formatPlate(v.plate)}</span>
+    </header>
+
+    <div class="veh-card-info">
+      <button type="button" class="veh-card-owner" onclick="goToCustomerCard('${v.customerId}')" title="Müşteri kartına git">
+        ${rawHtml(VEH_ICONS.user)}<strong>${ownerName}</strong>${ownerPhone ? html`<span class="veh-card-dot">·</span><span class="veh-card-phone">${ownerPhone}</span>` : ""}
+      </button>
+      <div class="veh-card-chips">
+        <span class="veh-chip" title="Giriş tarihi">${rawHtml(VEH_ICONS.calendar)}${formatDate(v.entryDate)}</span>
+        ${v.chassisNo ? html`<span class="veh-chip veh-chip-mono" title="Şasi numarası (VIN)"><b>VIN</b>${v.chassisNo}</span>` : ""}
+      </div>
+      ${v.notes ? html`<p class="veh-card-note" title="${v.notes}">${rawHtml(VEH_ICONS.note)}<span>${v.notes}</span></p>` : ""}
+    </div>
+
+    <footer class="veh-card-actions${canDelete() ? '' : ' no-delete'}">
+      ${ownerPhone
+        ? html`<a href="tel:${ownerPhone}" class="veh-act veh-act-call" title="Araç sahibini ara">${rawHtml(VEH_ICONS.phone)}<span>Ara</span></a>`
+        : html`<span class="veh-act veh-act-call is-disabled" aria-disabled="true">${rawHtml(VEH_ICONS.phone)}<span>Ara</span></span>`}
+      <button type="button" class="veh-act veh-act-primary" onclick="showVehicleHistory('${v.id}')">${rawHtml(VEH_ICONS.history)}<span>Geçmiş</span></button>
+      <button type="button" class="veh-act" onclick="openVehicleEditModal('${v.id}')">${rawHtml(VEH_ICONS.edit)}<span>Düzenle</span></button>
+      ${canDelete() ? html`<button type="button" class="veh-act veh-act-danger" onclick="triggerDeleteVehicle('${v.id}')" title="Aracı sil" aria-label="Aracı sil">${rawHtml(VEH_ICONS.trash)}</button>` : ""}
+    </footer>
+  `;
 }
 
 function renderOnlyVehicles() {
-  renderBrandFolders();
-
   const container = document.getElementById("onlyVehiclesContainer");
   const activeInfo = document.getElementById("brandActiveInfo");
   if (!container) return;
+
+  const activeGroup = activeBrandFolder === 'ALL' ? null : vehicleBrandGroups().find(g => g.key === activeBrandFolder);
+  if (!activeGroup) activeBrandFolder = 'ALL';
+  renderBrandFolders();
   container.innerHTML = "";
 
   if (activeInfo) {
-    if (activeBrandFolder === 'ALL') {
+    if (!activeGroup) {
       activeInfo.style.display = "none";
-    } else if (activeBrandFolder === 'OTHER') {
-      activeInfo.style.display = "block";
-      activeInfo.innerHTML = `📁 Seçili Klasör: <strong>Diğer Markalar</strong> (Yaygın listede olmayan tüm araçlar)`;
     } else {
-      activeInfo.style.display = "block";
-      activeInfo.innerHTML = `🚗 Seçili Klasör: <strong>${activeBrandFolder}</strong>`;
+      activeInfo.style.display = "flex";
+      activeInfo.innerHTML = html`<span>Seçili marka: <strong>${activeGroup.name}</strong> · ${activeGroup.count} araç</span>
+        <button type="button" class="link-btn" onclick="selectBrandFolder('ALL')">Tümünü göster</button>`.toString();
     }
   }
 
@@ -1968,116 +1997,32 @@ function renderOnlyVehicles() {
     return;
   }
 
-  // Seçili marka klasörüne göre filtrele
-  const filtered = state.vehicles.filter(v => {
-    if (activeBrandFolder === 'ALL') return true;
-    const b = (v.brand || "").trim();
-    const matchedBrand = KNOWN_BRANDS.find(kb => kb.toLowerCase() === b.toLowerCase());
-    if (activeBrandFolder === 'OTHER') {
-      return !matchedBrand;
-    }
-    return matchedBrand === activeBrandFolder;
-  });
-
+  const filtered = activeGroup ? state.vehicles.filter(v => catalogKey(v.brand) === activeGroup.key) : state.vehicles;
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="search-no-results" style="grid-column: 1 / -1; color: var(--text-secondary);">Bu klasörde henüz kayıtlı araç bulunmuyor.</div>`;
+    container.innerHTML = `<div class="search-no-results" style="grid-column: 1 / -1; color: var(--text-secondary);">Bu markada henüz kayıtlı araç bulunmuyor.</div>`;
     return;
   }
 
-  // Markaya ve modele göre alfabetik sırala
-  const sorted = [...filtered].sort((a, b) => 
-    a.brand.localeCompare(b.brand, "tr") || a.model.localeCompare(b.model, "tr")
+  const sorted = [...filtered].sort((a, b) =>
+    canonicalBrandName(a.brand).localeCompare(canonicalBrandName(b.brand), "tr") || a.model.localeCompare(b.model, "tr")
   );
-  
+
+  const fragment = document.createDocumentFragment();
   sorted.forEach(v => {
-    // Aracın sahibini bul
-    const owner = state.customers.find(c => c.id === v.customerId);
-    const ownerName = owner ? `${owner.firstName} ${owner.lastName}` : "Bilinmeyen Müşteri";
-    const ownerPhone = owner ? owner.phone : "";
-    
-    // Aracın servis kayıtlarını bul
-    const vehServices = state.serviceRecords.filter(s => s.vehicleId === v.id);
-
-    const card = document.createElement("div");
-    card.className = "only-card";
+    const card = document.createElement("article");
+    card.className = "veh-card";
     card.id = `only-veh-card-${v.id}`;
-    card.innerHTML = html`
-      <div>
-        <div class="only-card-header">
-          <div class="only-card-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-            ${v.brand} ${v.model}
-          </div>
-          <span class="only-card-badge">${v.plate}</span>
-        </div>
-        
-        <div class="only-card-body">
-          <div class="only-card-row" onclick="switchView('only-customers'); setTimeout(() => {
-            const card = document.getElementById('only-cust-card-${v.customerId}');
-            if(card) {
-              card.scrollIntoView({behavior: 'smooth', block: 'center'});
-              card.style.borderColor = 'var(--accent)';
-              setTimeout(() => card.style.borderColor = '', 2000);
-            }
-          }, 150)" style="cursor: pointer;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-            <strong>Sahibi:</strong>&nbsp;<span style="color: var(--accent); font-weight: 600; text-decoration: underline;">${ownerName}</span>
-          </div>
-
-          ${ownerPhone ? html`<div class="only-card-row">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-            <strong>Telefon:</strong>&nbsp;<a href="tel:${ownerPhone}" style="color: var(--text-primary); font-weight: 600;">${ownerPhone}</a>
-          </div>` : ""}
-
-          <div class="only-card-row">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <strong>Giriş Tarihi:</strong>&nbsp;${formatDate(v.entryDate)}
-          </div>
-
-          ${v.chassisNo ? html`<div class="only-card-row">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33"/></svg>
-            <strong>Şasi No:</strong>&nbsp;${v.chassisNo}
-          </div>` : ""}
-
-          ${v.notes ? html`<div class="only-card-row" style="align-items: flex-start; background: var(--bg-subtle); padding: 8px; border-radius: 6px; border-left: 3px solid var(--accent); margin-top: 4px;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <div style="font-size: 12px; color: var(--text-secondary);"><strong>Araç Notu:</strong> ${v.notes}</div>
-          </div>` : ""}
-
-          <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 500;">
-            ${vehServices.length} Geçmiş Servis Kaydı
-          </div>
-        </div>
-      </div>
-      
-      <div class="only-card-footer">
-        ${ownerPhone ? html`<a href="tel:${ownerPhone}" class="btn btn-call btn-mini" title="Araç Sahibini Ara">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-          Ara
-        </a>` : ""}
-        <button type="button" class="btn btn-accent btn-mini" onclick="showVehicleHistory('${v.id}')">
-          İşlem Geçmişi
-        </button>
-        <button type="button" class="btn btn-secondary btn-mini" onclick="openVehicleEditModal('${v.id}')">
-          Düzenle
-        </button>
-        ${canDelete() ? html`<button type="button" class="btn btn-danger btn-mini" onclick="triggerDeleteVehicle('${v.id}')">
-          Sil
-        </button>` : ""}
-      </div>
-    `;
-    container.appendChild(card);
+    card.innerHTML = vehicleCardHtml(v);
+    fragment.appendChild(card);
   });
+  container.appendChild(fragment);
 }
 
 function filterOnlyVehicles() {
-  const q = document.getElementById("onlyVehiclesSearch").value.toLowerCase();
-  document.querySelectorAll("#onlyVehiclesContainer .only-card").forEach(card => {
-    if (card.textContent.toLowerCase().includes(q)) {
-      card.style.setProperty("display", "flex", "important");
-    } else {
-      card.style.setProperty("display", "none", "important");
-    }
+  const input = document.getElementById("onlyVehiclesSearch");
+  const q = normalizeSearchText(input ? input.value : "");
+  document.querySelectorAll("#onlyVehiclesContainer .veh-card").forEach(card => {
+    card.classList.toggle("hidden", !!q && !normalizeSearchText(card.textContent).includes(q));
   });
 }
 
@@ -2150,24 +2095,7 @@ function openVehicleEditModal(id) {
   document.getElementById("edit_v_id").value = v.id;
   document.getElementById("edit_v_customerId").value = v.customerId;
 
-  const matchedBrand = KNOWN_BRANDS.find(kb => kb.toLowerCase() === (v.brand || "").toLowerCase());
-  const brandSelect = document.getElementById("edit_v_brand_select");
-  const customGroup = document.getElementById("edit_v_custom_brand_group");
-  const customInput = document.getElementById("edit_v_custom_brand");
-  
-  if (brandSelect) {
-    if (matchedBrand) {
-      brandSelect.value = matchedBrand;
-      if (customGroup) customGroup.classList.add("hidden");
-      if (customInput) customInput.value = "";
-    } else {
-      brandSelect.value = "OTHER_CUSTOM";
-      if (customGroup) customGroup.classList.remove("hidden");
-      if (customInput) customInput.value = v.brand || "";
-    }
-  }
-
-  document.getElementById("edit_v_model").value = v.model;
+  fillVehicleFields("edit_v", { brand: v.brand, model: v.model, modelYear: v.modelYear });
   document.getElementById("edit_v_plate").value = v.plate;
   document.getElementById("edit_v_chassis").value = v.chassisNo || "";
   document.getElementById("edit_v_entryDate").value = toIsoDate(v.entryDate);
@@ -2180,35 +2108,24 @@ function closeVehicleEditModal() {
   document.getElementById("vehicleEditModal").classList.add("hidden");
   document.getElementById("editVehicleForm").reset();
   clearCustomerCombobox('edit_v_customerId', 'edit_v_customerSearchInput', 'edit_v_customerClearBtn', 'edit_v_customerSelectedBadge');
-  const customGroup = document.getElementById("edit_v_custom_brand_group");
-  if (customGroup) customGroup.classList.add("hidden");
 }
 
 async function handleVehicleEditSubmit(e) {
   e.preventDefault();
   const id = document.getElementById("edit_v_id").value;
 
-  const brandSelect = document.getElementById("edit_v_brand_select");
-  const customBrandInput = document.getElementById("edit_v_custom_brand");
-  let brandValue = "";
-  if (brandSelect) {
-    if (brandSelect.value === "OTHER_CUSTOM") {
-      brandValue = customBrandInput ? customBrandInput.value.trim() : "";
-    } else {
-      brandValue = brandSelect.value;
-    }
-  }
-
-  if (!brandValue) {
-    showToast("Lütfen araç markasını seçin veya yazın.", "warning");
+  const fields = readVehicleFields("edit_v");
+  if (!fields.brand || !fields.model) {
+    showToast("Lütfen araç markasını ve modelini seçin veya yazın.", "warning");
+    document.getElementById(fields.brand ? "edit_v_model" : "edit_v_brand").focus();
     return;
   }
+  rememberVehicleCatalogEntry(fields.brand, fields.model);
 
   const payload = {
     id: id,
     customerId: document.getElementById("edit_v_customerId").value,
-    brand: brandValue,
-    model: document.getElementById("edit_v_model").value.trim(),
+    ...fields,
     plate: document.getElementById("edit_v_plate").value.trim().replace(/\s+/g, ""),
     chassisNo: document.getElementById("edit_v_chassis").value.trim(),
     entryDate: document.getElementById("edit_v_entryDate").value,

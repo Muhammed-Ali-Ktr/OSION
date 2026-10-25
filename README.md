@@ -48,10 +48,51 @@ Yetkiler veritabanında uygulanır; arayüzdeki gizlemeler yalnızca kolaylık i
 
 ---
 
+## Sayfalar
+
+| Adres | Dosyalar | Açıklama |
+|---|---|---|
+| `/` | `index.html`, `site.css`, `site.js` | Tanıtım sitesi: özellikler, paketler ve limitleri (fiyatlar veritabanından canlı gelir), SSS. "Giriş Yap" → `/panel#giris`, "Ücretsiz Dene" → `/panel#kayit` |
+| `/panel` | `panel.html`, `platform.js`, `app.js`, `catalog.js`, `scanner.js`, `mail.js`, `style.css` | İşletme paneli (giriş, kayıt, davet ve uygulama) |
+| `/admin` | `admin.html`, `admin.js`, `admin.css` | Sistem yönetimi: genel bakış, işletmeler, abonelikler ve ödemeler, duyurular, planlar ve fiyatlar, kullanıcılar, işlem kayıtları, giriş bilgilerim |
+
+E-posta doğrulama / şifre sıfırlama / davet bağlantıları köke (`/`) gelirse otomatik olarak `/panel`'e yönlendirilir.
+
+### Araç kaydı yenilikleri
+
+- **Marka → model seçimi:** hazır liste `catalog.js` içindedir. Listede olmayan marka/model yazılınca işletmenin kendi listesine (`vehicle_catalog`) eklenir ve tüm ekip görür.
+- **Model yılı** alanı (`vehicles.model_year`).
+- **Şasi numarasını kamerayla okutma:** kapı direği etiketindeki barkod (Code 39/128, Data Matrix, QR) yerel ZXing (`vendor/zxing.min.js`) ile, ön cam/ruhsat yazısı Tesseract OCR ile okunur (yalnızca okutma açıldığında jsDelivr'den yüklenir). Okunan numara kaydetmeden önce kullanıcıya onaylatılır. Kamera yalnızca https üzerinde çalışır.
+- **QR ile ekip daveti:** davet oluşturulunca QR gösterilir; yeni üye telefon kamerasıyla okutur veya giriş sayfasındaki *Davet Kodu → QR Kodu Okut* bölümünü kullanır.
+
+### Sistem yöneticisi
+
+`supabase/migrations/0004_platform_admin.sql` çalıştırıldıktan sonra yönetici hesabını SQL Editor'den bir kez ekleyin (hesap önce siteden normal şekilde oluşturulmuş olmalı):
+
+```sql
+insert into public.platform_admins (user_id)
+  select id from auth.users where email = 'yonetici@ornek.com';
+```
+
+Yönetici, işletmelerle aynı giriş sayfasından girer; işletmesi yoksa doğrudan `/admin`'e yönlendirilir, varsa panel menüsünde **Sistem Yönetimi** bağlantısı görünür. Plan müşteri/araç/kullanıcı limitleri veritabanında uygulanır.
+
+### Güncelleme sırası (mevcut kurulum)
+
+1. SQL Editor'de sırayla `0003_vehicle_catalog.sql` ve `0004_platform_admin.sql` dosyalarını çalıştırın.
+2. Yönetici hesabını ekleyin (yukarıdaki SQL).
+3. Siteyi yeniden yayınlayın (`npx vercel --prod`). Sıra önemlidir: model yılı sütunu yoksa uygulama yılı kaydetmeden çalışmaya devam eder, ancak katalog/yönetim özellikleri göç olmadan çalışmaz.
+
+---
+
 ## Dosya yapısı
 
 ```
-index.html                 Uygulama kabuğu, giriş/kurulum ekranları, sayfalar ve modaller
+index.html                 Tanıtım sitesi (site.css, site.js)
+panel.html                 Uygulama kabuğu, giriş/kurulum ekranları, sayfalar ve modaller
+admin.html                 Sistem yönetimi paneli (admin.js, admin.css)
+catalog.js                 Araç marka/model kataloğu ve seçim kutuları
+scanner.js                 Kamera ile şasi no / davet QR okuma, QR üretimi
+vendor/                    ZXing barkod kütüphanesi (Apache-2.0)
 kullanim-kosullari.html    Kullanım Koşulları (taslak, doldurulmalı)
 gizlilik.html              KVKK Aydınlatma Metni (taslak, doldurulmalı)
 vercel.json                Vercel yayın ayarları ve güvenlik başlıkları

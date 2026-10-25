@@ -3,7 +3,7 @@
   "short_name": "OSION",
   "description": "Oto servisleri için müşteri, araç, servis kaydı, borç ve gelir takip uygulaması.",
   "lang": "tr",
-  "start_url": "/",
+  "start_url": "/panel",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",

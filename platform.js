@@ -125,7 +125,8 @@ function mapCustomer(r) {
 function mapVehicle(r) {
   return {
     id: r.id, customerId: r.customer_id, brand: r.brand, model: r.model, plate: r.plate,
-    chassisNo: r.chassis_no, entryDate: r.entry_date, notes: r.notes, createdAt: r.created_at, updatedAt: r.updated_at
+    chassisNo: r.chassis_no, modelYear: r.model_year || null, entryDate: r.entry_date, notes: r.notes,
+    createdAt: r.created_at, updatedAt: r.updated_at
   };
 }
 
@@ -164,8 +165,21 @@ function customerRow(p) {
 function vehicleRow(p) {
   return {
     customer_id: p.customerId, brand: p.brand, model: p.model, plate: p.plate,
-    chassis_no: p.chassisNo || "", entry_date: p.entryDate || null, notes: p.notes || ""
+    chassis_no: p.chassisNo || "", model_year: Number(p.modelYear) || null, entry_date: p.entryDate || null, notes: p.notes || ""
   };
+}
+
+// 0003_vehicle_catalog.sql henüz uygulanmamış bir veritabanında model yılı sütunu yoktur;
+// bu durumda kayıt model yılı olmadan yeniden denenir (yıl bilgisi kaybolur, kayıt kaybolmaz).
+function isMissingColumnError(error) {
+  return !!error && (error.code === "PGRST204" || error.code === "42703") && /model_year/.test(error.message || "");
+}
+
+async function writeVehicle(write, row) {
+  const result = await write(row);
+  if (!isMissingColumnError(result.error)) return result;
+  const { model_year: _ignored, ...legacyRow } = row;
+  return write(legacyRow);
 }
 
 // Toplam, ödenen ve kalan tutarlar veritabanında hesaplanır; istemci yalnızca kalemleri gönderir.
@@ -243,6 +257,7 @@ function toApiError(error) {
   if (isNetworkError(error)) return new ApiError(NETWORK_MESSAGE, "NETWORK");
   switch (error.code) {
     case "42501": return new ApiError("Bu işlem için yetkiniz bulunmuyor.", "FORBIDDEN");
+    case "23505": return new ApiError("Bu kayıt zaten mevcut.", "DUPLICATE");
     case "23503": return new ApiError("İlişkili kayıt bulunamadı. Sayfayı yenileyip tekrar deneyin.", "NOT_FOUND");
     case "23502": case "23514": case "22001": case "22003": case "22007": case "22008": case "22P02":
       return new ApiError("Girilen bilgilerden biri geçersiz. Alanları kontrol edip tekrar deneyin.", "VALIDATION");
@@ -343,13 +358,19 @@ const API_ACTIONS = {
   addCustomer: (p) => insertRow("customers", customerRow(p), mapCustomer),
   updateCustomer: (p) => updateRow("customers", p.id, customerRow({ ...findState("customers", p.id, "Müşteri"), ...p }), mapCustomer),
   deleteCustomer: (p) => deleteRow("customers", p.id),
-  addVehicle: (p) => insertRow("vehicles", vehicleRow(p), mapVehicle),
-  updateVehicle: (p) => updateRow("vehicles", p.id, vehicleRow({ ...findState("vehicles", p.id, "Araç"), ...p }), mapVehicle),
+  addVehicle: async (p) => mapVehicle(await run(writeVehicle(
+    (row) => sb.from("vehicles").insert({ ...row, tenant_id: requireTenantId() }).select().single(), vehicleRow(p)))),
+  updateVehicle: async (p) => mapVehicle(await run(writeVehicle(
+    (row) => sb.from("vehicles").update(row).eq("id", p.id).select().single(),
+    vehicleRow({ ...findState("vehicles", p.id, "Araç"), ...p })))),
   deleteVehicle: (p) => deleteRow("vehicles", p.id),
   addServiceRecord: (p) => insertRow("service_records", serviceRecordRow(p), mapServiceRecord),
   updateServiceRecord: (p) => updateRow("service_records", p.id,
     serviceRecordRow({ ...findState("serviceRecords", p.id, "Servis kaydı"), ...p }), mapServiceRecord),
   deleteServiceRecord: (p) => deleteRow("service_records", p.id),
+  listVehicleCatalog: () => run(sb.from("vehicle_catalog").select("id, brand, model").eq("tenant_id", requireTenantId())),
+  addVehicleCatalogEntry: async (p) => run(sb.from("vehicle_catalog")
+    .insert({ tenant_id: requireTenantId(), brand: p.brand, model: p.model || "" }).select("id, brand, model").single()),
 
   saveBusinessProfile: async (p) => {
     await run(sb.from("tenants").update(tenantProfileRow(p)).eq("id", requireTenantId()).select("id").single());
@@ -715,6 +736,9 @@ async function bootApp() {
   const isRecovery = hashParams.get("type") === "recovery";
   const linkError = hashParams.get("error_description") || hashParams.get("error");
   const inviteCode = readInviteCodeFromHash();
+  // Tanıtım sitesindeki "Ücretsiz Dene" / "Giriş Yap" düğmeleri: #kayit, #giris
+  const landingTab = { "#kayit": "register", "#giris": "login" }[window.location.hash] || "";
+  if (landingTab) history.replaceState(null, "", window.location.pathname + window.location.search);
 
   sb = window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" }
@@ -735,11 +759,12 @@ async function bootApp() {
     const message = linkError
       ? authErrorMessage({ message: linkError, code: hashParams.get("error_code") || "" })
       : notice;
-    showAuth(inviteCode ? "invite" : "login", { message, inviteCode });
+    showAuth(inviteCode ? "invite" : landingTab || "login", { message, inviteCode });
     return;
   }
 
   try {
+    if (inviteCode) await acceptInviteWithSession(inviteCode);
     handleBootstrap(await apiCall("bootstrap"));
   } catch (err) {
     if (err.handled) return;
@@ -773,6 +798,10 @@ function handleBootstrap(data) {
     return;
   }
   if (!data.tenant) {
+    // İşletmesi olmayan sistem yöneticisi doğrudan yönetim paneline gider.
+    rpc("platform_is_admin").then((isAdmin) => {
+      if (isAdmin) window.location.replace("/admin");
+    }).catch(() => {});
     showNotice({
       title: "Bağlı işletme bulunamadı",
       message: "Bu hesaba bağlı aktif bir işletme yok. Bir işletmeye davet edildiyseniz davet kodunuzla katılabilirsiniz.",
@@ -795,6 +824,20 @@ function readInviteCodeFromHash() {
   return m[1];
 }
 
+/**
+ * Oturum açıkken davet bağlantısı/QR kodu açıldığında daveti doğrudan kabul eder.
+ * Davet başka bir e-postaya aitse veya geçersizse kullanıcı mevcut işletmesiyle devam eder.
+ */
+async function acceptInviteWithSession(code) {
+  try {
+    storageSet(ACTIVE_TENANT_KEY, await rpc("accept_invite", { p_code: code }));
+    setTimeout(() => showToast("Davet kabul edildi; işletmeye ekip üyesi olarak katıldınız.", "success"), 600);
+  } catch (err) {
+    if (err.code === "NETWORK") throw err;
+    setTimeout(() => showToast(`Davet kabul edilemedi: ${err.message}`, "warning"), 600);
+  }
+}
+
 function routeAfterAuth() {
   if (!platform.tenant.setupCompleted) {
     if (isManager()) {
@@ -814,6 +857,39 @@ function routeAfterAuth() {
   enterApp();
 }
 
+const DISMISSED_ANNOUNCEMENTS_KEY = "osion_dismissed_announcements";
+const ANNOUNCEMENT_LABELS = { info: "Bilgi", success: "Yenilik", warning: "Önemli", maintenance: "Planlı bakım" };
+
+/** Sistem yöneticisi bağlantısı ve yayındaki duyurular (hata olursa sessizce atlanır). */
+async function loadPlatformExtras() {
+  rpc("platform_is_admin").then((isAdmin) => {
+    document.getElementById("menu-platform-admin")?.classList.toggle("hidden", !isAdmin);
+  }).catch(() => {});
+  let list = [];
+  try {
+    list = (await rpc("active_announcements")) || [];
+  } catch {
+    return;
+  }
+  let dismissed = [];
+  try { dismissed = JSON.parse(storageGet(DISMISSED_ANNOUNCEMENTS_KEY) || "[]"); } catch { /* yok say */ }
+  const stack = document.getElementById("announcementStack");
+  if (!stack) return;
+  stack.innerHTML = list.filter((a) => !dismissed.includes(a.id)).map((a) => html`<div class="announcement announcement-${a.level}" data-announcement="${a.id}">
+      <span class="announcement-tag">${ANNOUNCEMENT_LABELS[a.level] || "Duyuru"}</span>
+      <div class="announcement-text"><strong>${a.title}</strong>${a.body ? html`<span>${a.body}</span>` : ""}</div>
+      <button type="button" class="announcement-close" aria-label="Duyuruyu kapat">&times;</button>
+    </div>`).map(String).join("");
+  stack.querySelectorAll(".announcement-close").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const box = btn.closest("[data-announcement]");
+      dismissed.push(box.dataset.announcement);
+      storageSet(DISMISSED_ANNOUNCEMENTS_KEY, JSON.stringify(dismissed.slice(-50)));
+      box.remove();
+    });
+  });
+}
+
 function enterApp({ offline = false } = {}) {
   platform.offline = offline;
   applyTenantBranding();
@@ -822,7 +898,10 @@ function enterApp({ offline = false } = {}) {
   const target = state.currentView && document.getElementById(`view-${state.currentView}`) ? state.currentView : "dashboard";
   switchView(target);
   setSyncStatus(offline ? "offline" : "connected");
-  if (!offline) loadMailStatus();
+  if (!offline) {
+    loadMailStatus();
+    loadPlatformExtras();
+  }
   if (!offline && platform.plan && platform.plan.canWrite === false) {
     showToast("Deneme süreniz veya aboneliğiniz sona erdi. Kayıtlarınızı görüntüleyebilirsiniz; yeni kayıt için aboneliğinizi yenileyin.", "warning");
   }
@@ -1553,10 +1632,23 @@ function renderTeam(team) {
       <small>${ROLE_LABELS[inv.role] || inv.role} · Son geçerlilik: ${formatDisplayDate(inv.expiresAt)}</small>
     </div>
     <div class="member-actions">
+      ${inv.role !== "admin" || isOwner() ? html`<button type="button" class="btn btn-secondary btn-mini" data-reissue-invite="${inv.email}" data-invite-role="${inv.role}" title="Yeni kod ve QR oluşturur; eski kod geçersiz olur">Yeni QR</button>` : ""}
       <button type="button" class="btn btn-secondary btn-mini" data-revoke-invite="${inv.id}">İptal Et</button>
     </div>
   </div>`).map(String).join("") || `<div class="list-placeholder">Bekleyen davet yok.</div>`;
 
+  invites.querySelectorAll("[data-reissue-invite]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm(`${btn.dataset.reissueInvite} için yeni davet kodu ve QR oluşturulsun mu? Önceki kod geçersiz olur.`)) return;
+      btn.disabled = true;
+      try {
+        showInviteResult(await apiCall("createInvite", { email: btn.dataset.reissueInvite, role: btn.dataset.inviteRole }));
+      } catch (err) {
+        reportError(err);
+      }
+      loadTeam();
+    });
+  });
   invites.querySelectorAll("[data-revoke-invite]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       btn.disabled = true;
@@ -1593,8 +1685,25 @@ async function handleCreateInvite(event) {
 function showInviteResult({ invitation, code }) {
   const box = document.getElementById("inviteResult");
   const link = `${window.location.origin}${window.location.pathname}#davet=${code}`;
+  const roleLabel = ROLE_LABELS[invitation.role] || invitation.role;
   box.innerHTML = html`<div class="invite-result-title">Davet oluşturuldu: ${invitation.email}</div>
-    <p class="card-desc">Bu kod güvenlik nedeniyle yalnızca şimdi gösterilir. Çalışanınıza iletin; kod ${formatDisplayDate(invitation.expiresAt)} tarihine kadar geçerlidir.</p>
+    <p class="card-desc">Bu kod ve QR güvenlik nedeniyle yalnızca şimdi gösterilir; ${formatDisplayDate(invitation.expiresAt)} tarihine kadar geçerlidir.</p>
+    <div class="invite-share">
+      <div class="invite-qr" data-invite-qr aria-busy="true"><div class="spinner" aria-hidden="true"></div></div>
+      <div class="invite-share-body">
+        <div class="invite-steps">
+          <strong>QR ile ekleme</strong>
+          <ol>
+            <li>Yeni üye telefonunun kamerasıyla bu QR kodu okutsun <span>— ya da giriş sayfasında <em>Davet Kodu → QR Kodu Okut</em>'u seçsin.</span></li>
+            <li><b>${invitation.email}</b> adresini ve şifresini girerek katılsın.</li>
+          </ol>
+        </div>
+        <div class="invite-qr-actions">
+          <button type="button" class="btn btn-accent btn-mini" data-qr-fullscreen disabled>QR'ı Büyüt</button>
+          <button type="button" class="btn btn-secondary btn-mini" data-qr-download disabled>PNG İndir</button>
+        </div>
+      </div>
+    </div>
     <div class="copy-row"><code class="invite-code">${code}</code><button type="button" class="btn btn-secondary btn-mini" data-copy="${code}">Kodu Kopyala</button></div>
     <div class="copy-row"><code class="invite-link">${link}</code><button type="button" class="btn btn-secondary btn-mini" data-copy="${link}">Bağlantıyı Kopyala</button></div>`.toString();
   box.classList.remove("hidden");
@@ -1608,6 +1717,28 @@ function showInviteResult({ invitation, code }) {
       }
     });
   });
+
+  const qrBox = box.querySelector("[data-invite-qr]");
+  renderQrSvg(link).then((svg) => {
+    qrBox.innerHTML = svg;
+    qrBox.removeAttribute("aria-busy");
+    const businessName = (platform.tenant && platform.tenant.name) || APP_CONFIG.productName;
+    const fullscreenBtn = box.querySelector("[data-qr-fullscreen]");
+    const downloadBtn = box.querySelector("[data-qr-download]");
+    fullscreenBtn.disabled = false;
+    downloadBtn.disabled = false;
+    fullscreenBtn.addEventListener("click", () => showQrFullscreen({
+      svg,
+      title: `${businessName} ekibine katıl`,
+      subtitle: `${invitation.email} · ${roleLabel} · ${formatDisplayDate(invitation.expiresAt)} tarihine kadar geçerli`
+    }));
+    downloadBtn.addEventListener("click", () => downloadQrPng(svg, `osion-davet-${invitation.email.split("@")[0]}.png`)
+      .catch(() => showToast("QR indirilemedi.", "warning")));
+  }).catch(() => {
+    qrBox.innerHTML = `<p class="invite-qr-error">QR oluşturulamadı. Kodu veya bağlantıyı paylaşın.</p>`;
+    qrBox.removeAttribute("aria-busy");
+  });
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function renderPlan() {

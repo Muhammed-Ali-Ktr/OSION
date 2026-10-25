@@ -1,1308 +1,299 @@
 <!DOCTYPE html>
-<html lang="tr" data-theme="light">
+<html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OSION - Servis Takip</title>
-  <meta name="description" content="Oto servisleri için müşteri, araç, servis kaydı, borç ve gelir takip uygulaması.">
+  <script>
+    // E-posta doğrulama / şifre sıfırlama / davet bağlantıları uygulama paneline yönlendirilir.
+    (function () {
+      var h = window.location.hash || "";
+      if (/(^#|&)(access_token|error|error_description|type|davet)=/.test(h)) window.location.replace("/panel" + h);
+    })();
+  </script>
+  <title>OSION — Oto servisleri için servis kaydı ve müşteri takip sistemi</title>
+  <meta name="description" content="OSION; oto tamir servisleri, elektrikçiler ve kaportacılar için müşteri, araç, servis kaydı, borç-alacak ve gelir takibini tek panelde toplayan bulut tabanlı servis yönetim sistemi.">
   <meta name="theme-color" content="#1c64d3">
-  <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta name="application-name" content="OSION">
-  <meta name="apple-mobile-web-app-title" content="OSION">
-  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="OSION">
-  <meta property="og:title" content="OSION - Servis Takip">
-  <meta property="og:description" content="Oto servisleri için müşteri, araç, servis kaydı, borç ve gelir takip uygulaması.">
+  <meta property="og:title" content="OSION — Servis kaydı ve müşteri takip sistemi">
+  <meta property="og:description" content="Müşteri ve araç kartları, servis girişi, borç takibi, gelir raporları ve ekip yönetimi tek panelde.">
   <meta property="og:url" content="https://osion.ziftstudio.site/">
   <meta property="og:image" content="https://osion.ziftstudio.site/icons/icon-512.png">
-  <meta property="og:image:width" content="512">
-  <meta property="og:image:height" content="512">
-  <meta property="og:image:alt" content="OSION logosu">
   <meta property="og:locale" content="tr_TR">
   <meta name="twitter:card" content="summary">
   <link rel="canonical" href="https://osion.ziftstudio.site/">
-  <!-- Ana logo: sekme ikonu, arama sonuçları ve telefona yüklenen uygulama ikonu -->
   <link rel="icon" href="favicon.ico" sizes="48x48">
   <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
-  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-
-  <!-- Fontlar ve Stil -->
-  <link rel="stylesheet" href="style.css">
-
-  <!-- Chart.js Grafikler için (sürüm sabitlendi) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="site.css">
+  <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"SoftwareApplication","name":"OSION","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"Oto servisleri için servis kaydı, müşteri ve araç takip sistemi.","url":"https://osion.ziftstudio.site/","inLanguage":"tr"}
+  </script>
 </head>
 <body>
+  <a class="skip-link" href="#icerik">İçeriğe geç</a>
 
-  <!-- Toast Bildirim Konteyneri -->
-  <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
-
-  <!-- ==================== AÇILIŞ / YÜKLENİYOR ==================== -->
-  <div class="boot-screen" id="bootScreen">
-    <img class="boot-logo" src="icons/logo-mark.png" alt="" width="56" height="56">
-    <div class="spinner" aria-hidden="true"></div>
-    <p>Yükleniyor…</p>
-  </div>
-
-  <!-- ==================== BİLGİ EKRANI (yapılandırma, kurulum bekleniyor, bağlantı hatası) ==================== -->
-  <div class="notice-shell hidden" id="noticeScreen">
-    <div class="notice-card panel-card">
-      <div class="notice-icon" aria-hidden="true">
-        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      </div>
-      <h1 class="notice-title" id="noticeTitle"></h1>
-      <p class="notice-message" id="noticeMessage"></p>
-      <div class="notice-actions" id="noticeActions"></div>
-    </div>
-  </div>
-
-  <!-- ==================== GİRİŞ / KAYIT / DAVET ==================== -->
-  <div class="auth-shell hidden" id="authScreen">
-    <div class="auth-layout">
-      <section class="auth-intro">
-        <div class="auth-intro-rings" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div class="auth-brand">
-          <span class="brand-mark"><img src="icons/logo-mark.png" alt="" width="28" height="28"></span>
-          <span data-product-name>OSION</span>
-        </div>
-        <div class="auth-intro-body">
-          <span class="auth-eyebrow">Oto servis yönetim platformu</span>
-          <h1 class="auth-intro-title">Servisinizin tüm kayıtları tek panelde.</h1>
-          <p class="auth-intro-text">Müşteri, araç, servis girişi, borç ve gelir takibi. Her işletmenin verisi yalnızca kendi ekibine açıktır.</p>
-          <ul class="auth-feature-list">
-            <li>
-              <span class="auth-feature-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
-              <span><strong>Müşteri ve araç kartları</strong>Marka klasörleriyle düzenli arşiv</span>
-            </li>
-            <li>
-              <span class="auth-feature-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
-              <span><strong>Servis ve ödeme takibi</strong>Usta bazlı iş girişi, borç ve gelir</span>
-            </li>
-            <li>
-              <span class="auth-feature-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-              <span><strong>Ekip ve yetkiler</strong>Çalışanlarınızı rol bazlı davet edin</span>
-            </li>
-          </ul>
-        </div>
-        <div class="auth-intro-foot">
-          <img class="zift-signature" src="icons/zift-studio.png" alt="Zift Studio — Developed by Muhammet Ali Kıtır" width="184" height="54">
-        </div>
-      </section>
-
-      <section class="auth-main">
-      <div class="auth-card">
-        <div class="auth-tabs" role="tablist" aria-label="Giriş seçenekleri">
-          <button type="button" class="auth-tab active" role="tab" data-auth-tab="login" onclick="showAuthTab('login')">Giriş Yap</button>
-          <button type="button" class="auth-tab" role="tab" data-auth-tab="register" onclick="showAuthTab('register')">İşletme Oluştur</button>
-          <button type="button" class="auth-tab" role="tab" data-auth-tab="invite" onclick="showAuthTab('invite')">Davet Kodu</button>
-        </div>
-
-        <div class="form-alert hidden" id="authAlert" role="alert"></div>
-
-        <form id="loginForm" class="auth-form" data-auth-panel="login" onsubmit="handleLoginSubmit(event)" novalidate>
-          <h2 class="auth-form-title">Hesabınıza giriş yapın</h2>
-          <div class="form-group">
-            <label class="form-label" for="login_email">E-posta</label>
-            <input type="email" id="login_email" class="form-control" autocomplete="username" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="login_password">Şifre</label>
-            <input type="password" id="login_password" class="form-control" autocomplete="current-password" required>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block" id="btnLogin">Giriş Yap</button>
-          <p class="auth-hint"><button type="button" class="link-btn" onclick="showAuth('forgot')">Şifremi unuttum</button></p>
-          <p class="auth-hint">Hesabınız yok mu? <button type="button" class="link-btn" onclick="showAuthTab('register')">İşletmenizi oluşturun</button></p>
-        </form>
-
-        <form id="registerForm" class="auth-form hidden" data-auth-panel="register" onsubmit="handleRegisterSubmit(event)" novalidate>
-          <h2 class="auth-form-title">Yeni işletme hesabı</h2>
-          <p class="auth-form-desc">Hesabı açan kişi işletme sahibi olur. Dükkan bilgilerinizi bir sonraki adımda gireceksiniz.</p>
-          <div class="form-group">
-            <label class="form-label" for="reg_businessName">İşletme / dükkan adı *</label>
-            <input type="text" id="reg_businessName" class="form-control" maxlength="80" autocomplete="organization" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="reg_displayName">Adınız soyadınız *</label>
-            <input type="text" id="reg_displayName" class="form-control" maxlength="80" autocomplete="name" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="reg_email">E-posta *</label>
-            <input type="email" id="reg_email" class="form-control" maxlength="120" autocomplete="email" required>
-          </div>
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label" for="reg_password">Şifre *</label>
-              <input type="password" id="reg_password" class="form-control" minlength="8" autocomplete="new-password" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="reg_password2">Şifre (tekrar) *</label>
-              <input type="password" id="reg_password2" class="form-control" minlength="8" autocomplete="new-password" required>
-            </div>
-          </div>
-          <p class="field-hint">En az 8 karakter; en az bir harf ve bir rakam.</p>
-          <div class="form-group terms-group">
-            <label class="terms-check" for="reg_terms">
-              <input type="checkbox" id="reg_terms">
-              <span><a href="kullanim-kosullari.html" target="_blank" rel="noopener">Kullanım Koşulları</a>'nı okudum ve kabul ediyorum; <a href="gizlilik.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>'ni okudum.</span>
-            </label>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block" id="btnRegister">Hesabı Oluştur</button>
-        </form>
-
-        <form id="inviteForm" class="auth-form hidden" data-auth-panel="invite" onsubmit="handleInviteSubmit(event)" novalidate>
-          <h2 class="auth-form-title">Davet ile katılın</h2>
-          <p class="auth-form-desc">İşletme yöneticinizin paylaştığı kodu ve davet edilen e-posta adresinizi girin. Zaten hesabınız varsa mevcut şifrenizi kullanın.</p>
-          <div class="form-group">
-            <label class="form-label" for="inv_code">Davet kodu *</label>
-            <input type="text" id="inv_code" class="form-control mono-input" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="inv_email">E-posta *</label>
-            <input type="email" id="inv_email" class="form-control" autocomplete="email" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="inv_displayName">Adınız soyadınız</label>
-            <input type="text" id="inv_displayName" class="form-control" maxlength="80" autocomplete="name">
-            <p class="field-hint">Yeni hesap oluşturuyorsanız zorunludur.</p>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="inv_password">Şifre *</label>
-            <input type="password" id="inv_password" class="form-control" autocomplete="new-password" required>
-          </div>
-          <div class="form-group terms-group">
-            <label class="terms-check" for="inv_terms">
-              <input type="checkbox" id="inv_terms">
-              <span><a href="kullanim-kosullari.html" target="_blank" rel="noopener">Kullanım Koşulları</a>'nı okudum ve kabul ediyorum; <a href="gizlilik.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a>'ni okudum.</span>
-            </label>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block" id="btnInvite">Davete Katıl</button>
-        </form>
-
-        <form id="forgotForm" class="auth-form hidden" data-auth-panel="forgot" onsubmit="handleForgotSubmit(event)" novalidate>
-          <h2 class="auth-form-title">Şifrenizi sıfırlayın</h2>
-          <p class="auth-form-desc">Hesabınızın e-posta adresini girin; şifre sıfırlama bağlantısı göndereceğiz.</p>
-          <div class="form-group">
-            <label class="form-label" for="fp_email">E-posta</label>
-            <input type="email" id="fp_email" class="form-control" autocomplete="email" required>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block" id="btnForgot">Bağlantı Gönder</button>
-          <button type="button" class="btn btn-secondary btn-block" onclick="showAuthTab('login')">Girişe Dön</button>
-        </form>
-
-        <form id="newPasswordForm" class="auth-form hidden" data-auth-panel="newpass" onsubmit="handleNewPasswordSubmit(event)" novalidate>
-          <h2 class="auth-form-title">Yeni şifre belirleyin</h2>
-          <div class="form-group">
-            <label class="form-label" for="np_password">Yeni şifre</label>
-            <input type="password" id="np_password" class="form-control" minlength="8" autocomplete="new-password" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="np_password2">Yeni şifre (tekrar)</label>
-            <input type="password" id="np_password2" class="form-control" minlength="8" autocomplete="new-password" required>
-          </div>
-          <p class="field-hint">En az 8 karakter; en az bir harf ve bir rakam.</p>
-          <button type="submit" class="btn btn-primary btn-block" id="btnNewPassword">Şifreyi Kaydet</button>
-        </form>
-
-        <div class="auth-form hidden" data-auth-panel="choose" id="tenantChoicePanel">
-          <h2 class="auth-form-title">İşletme seçin</h2>
-          <p class="auth-form-desc">Hesabınız birden fazla işletmeye bağlı. Hangisiyle devam etmek istiyorsunuz?</p>
-          <div class="tenant-choice-list" id="tenantChoiceList"></div>
-          <button type="button" class="btn btn-secondary btn-block" onclick="logout()">Çıkış Yap</button>
-        </div>
-      </div>
-        <p class="auth-legal-links"><a href="kullanim-kosullari.html" target="_blank" rel="noopener">Kullanım Koşulları</a> · <a href="gizlilik.html" target="_blank" rel="noopener">KVKK Aydınlatma Metni</a></p>
-        <img class="zift-signature auth-credit-mobile" src="icons/zift-studio.png" alt="Zift Studio — Developed by Muhammet Ali Kıtır" width="150" height="44">
-      </section>
-    </div>
-  </div>
-
-  <!-- ==================== İLK KURULUM SİHİRBAZI ==================== -->
-  <div class="setup-shell hidden" id="setupScreen">
-    <header class="setup-topbar">
-      <div class="auth-brand">
-        <span class="brand-mark"><img src="icons/logo-mark.png" alt="" width="28" height="28"></span>
-        <span data-product-name>OSION</span>
-      </div>
-      <div class="setup-user">
-        <span id="setupUserText"></span>
-        <button type="button" class="btn btn-secondary btn-mini" onclick="logout()">Çıkış Yap</button>
-      </div>
-    </header>
-    <main class="setup-main">
-      <div class="setup-heading">
-        <h1 class="page-title">Hoş geldiniz! İşletmenizi tanıyalım.</h1>
-        <p class="page-description">Bu bilgiler menüde, sayfa başlığında ve tutar/tarih gösterimlerinde kullanılır. Daha sonra <strong>İşletme Ayarları</strong> bölümünden değiştirebilirsiniz.</p>
-      </div>
-      <div class="step-progress-bar" id="setupStepBar">
-        <div class="step-item active" data-setup-indicator="1"><div class="step-number">1</div><span>İşletme Bilgileri</span></div>
-        <div class="step-divider"></div>
-        <div class="step-item" data-setup-indicator="2"><div class="step-number">2</div><span>Para Birimi ve Biçimler</span></div>
-        <div class="step-divider"></div>
-        <div class="step-item" data-setup-indicator="3"><div class="step-number">3</div><span>Vergi Bilgileri</span></div>
-        <div class="step-divider"></div>
-        <div class="step-item" data-setup-indicator="4"><div class="step-number">4</div><span>E-posta (isteğe bağlı)</span></div>
-      </div>
-      <div class="setup-grid">
-        <form id="setupForm" class="panel-card" onsubmit="handleSetupSubmit(event)" novalidate>
-          <div class="form-alert hidden" id="setupAlert" role="alert"></div>
-          <div data-setup-step="1"></div>
-          <div data-setup-step="2" class="hidden"></div>
-          <div data-setup-step="3" class="hidden"></div>
-          <div data-setup-step="4" class="hidden"></div>
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" id="setupBackBtn" onclick="goToSetupStep(setupState.step - 1)">&larr; Geri</button>
-            <button type="button" class="btn btn-accent" id="setupNextBtn" onclick="goToSetupStep(setupState.step + 1)">İlerle &rarr;</button>
-            <button type="submit" class="btn btn-primary hidden" id="setupFinishBtn">✓ Kurulumu Tamamla</button>
-          </div>
-        </form>
-        <aside class="panel-card setup-preview" aria-label="Önizleme">
-          <div class="setup-preview-label">Önizleme</div>
-          <div class="preview-brand">
-            <div class="logo-icon tenant-logo" id="previewLogo"></div>
-            <div>
-              <div class="logo-text" id="previewName">İşletme adı</div>
-              <div class="sidebar-brand-sub" id="previewContact"></div>
-            </div>
-          </div>
-          <div class="preview-row"><span>Örnek tutar</span><strong id="previewMoney"></strong></div>
-          <div class="preview-row"><span>Örnek tarih</span><strong id="previewDate"></strong></div>
-        </aside>
-      </div>
-    </main>
-  </div>
-
-  <!-- Mobil Sidebar Kapatma Örtüsü -->
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-  <!-- SOL MENÜ (SIDEBAR) -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-icon tenant-logo" id="tenantLogo" aria-hidden="true"></div>
-      <div class="sidebar-brand-text">
-        <div class="logo-text" id="tenantNameText"></div>
-        <div class="sidebar-brand-sub sidebar-product"><img src="icons/logo-mark.png" alt="" width="14" height="14"><span data-product-name>OSION</span></div>
-      </div>
-    </div>
-    
-    <nav style="flex: 1;">
-      <ul class="sidebar-menu">
-        <li class="menu-item active" id="menu-dashboard">
-          <button onclick="switchView('dashboard')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <rect x="3" y="3" width="7" height="9" rx="1"/>
-              <rect x="14" y="3" width="7" height="5" rx="1"/>
-              <rect x="14" y="12" width="7" height="9" rx="1"/>
-              <rect x="3" y="16" width="7" height="5" rx="1"/>
-            </svg>
-            Ana Sayfa (Panel)
-          </button>
-        </li>
-        <li class="menu-item" id="menu-customers">
-          <button onclick="switchView('customers')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            Müşteri & Araç Kayıt
-          </button>
-        </li>
-        <li class="menu-item" id="menu-only-customers">
-          <button onclick="switchView('only-customers')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            Müşteriler
-          </button>
-        </li>
-        <li class="menu-item" id="menu-only-vehicles">
-          <button onclick="switchView('only-vehicles')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <rect x="1" y="3" width="15" height="13"/>
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-              <circle cx="5.5" cy="18.5" r="2.5"/>
-              <circle cx="18.5" cy="18.5" r="2.5"/>
-            </svg>
-            Araçlar
-          </button>
-        </li>
-        <li class="menu-item" id="menu-calendar">
-          <button onclick="switchView('calendar')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            Tarihler
-          </button>
-        </li>
-        <li class="menu-item" id="menu-services">
-          <button onclick="switchView('services')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            Servis Girişi
-          </button>
-        </li>
-        <li class="menu-item" id="menu-services-log">
-          <button onclick="switchView('services-log')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            Servis Notları
-          </button>
-        </li>
-        <li class="menu-item" id="menu-debts">
-          <button onclick="switchView('debts')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="1" x2="12" y2="23"/>
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </svg>
-            Borç Listesi
-          </button>
-        </li>
-        <li class="menu-item" id="menu-settings">
-          <button onclick="switchView('settings')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <path d="M3 21h18"/>
-              <path d="M5 21V7l7-4 7 4v14"/>
-              <path d="M9 21v-6h6v6"/>
-            </svg>
-            İşletme Ayarları
-          </button>
-        </li>
-      </ul>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="user-card">
-        <div class="user-avatar" id="userAvatar" aria-hidden="true"></div>
-        <div class="user-meta">
-          <div class="user-name" id="userNameText"></div>
-          <div class="user-role" id="userRoleText"></div>
-        </div>
-        <button type="button" class="icon-btn" onclick="logout()" title="Çıkış Yap" aria-label="Çıkış Yap">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+  <header class="site-header" id="siteHeader">
+    <div class="container header-inner">
+      <a href="/" class="brand" aria-label="OSION ana sayfa">
+        <span class="brand-mark"><img src="icons/logo-mark.png" alt="" width="26" height="26"></span>
+        <span class="brand-name">OSION</span>
+      </a>
+      <nav class="site-nav" id="siteNav" aria-label="Ana menü">
+        <a href="#ozellikler">Özellikler</a>
+        <a href="#nasil-calisir">Nasıl çalışır?</a>
+        <a href="#fiyatlar">Paketler</a>
+        <a href="#sss">SSS</a>
+      </nav>
+      <div class="header-actions">
+        <a href="/panel#giris" class="btn btn-ghost" data-auth-link="login">Giriş Yap</a>
+        <a href="/panel#kayit" class="btn btn-primary" data-auth-link="register">Ücretsiz Dene</a>
+        <button type="button" class="nav-toggle" id="navToggle" aria-label="Menüyü aç" aria-expanded="false" aria-controls="siteNav">
+          <span></span><span></span><span></span>
         </button>
       </div>
-
-      <button class="btn-sidebar-action" id="themeToggleBtn" onclick="toggleTheme()" aria-label="Temayı Değiştir">
-        <svg id="themeIconSun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="hidden">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <svg id="themeIconMoon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-        <span id="themeToggleText">Koyu Tema</span>
-      </button>
-
-      <div class="api-status-badge" id="apiStatusBadge">
-        <div class="status-dot" id="apiStatusDot"></div>
-        <span id="apiStatusText">Bağlanıyor…</span>
-      </div>
-
-      <img class="zift-signature sidebar-credit" src="icons/zift-studio.png" alt="Zift Studio — Developed by Muhammet Ali Kıtır" width="120" height="35">
     </div>
-  </aside>
+  </header>
 
-  <!-- SAĞ ANA ALAN (MAIN CONTENT) -->
-  <main class="main-content">
-    
-    <!-- ÜST BAR (TOP BAR) -->
-    <header class="topbar">
-      <!-- Mobil Hamburger Butonu -->
-      <button class="menu-toggle" id="menuToggle" onclick="toggleMobileSidebar()" aria-label="Menüyü Aç">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-          <line x1="3" y1="12" x2="21" y2="12"/>
-          <line x1="3" y1="6" x2="21" y2="6"/>
-          <line x1="3" y1="18" x2="21" y2="18"/>
-        </svg>
-      </button>
-      
-      <!-- Gelişmiş Global Arama Barı -->
-      <div class="search-container">
-        <div class="search-wrapper">
-          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" id="globalSearch" class="global-search" placeholder="Müşteri, plaka, marka veya sayfa ara..." oninput="handleGlobalSearch()" autocomplete="off">
-          <span class="search-shortcut">/</span>
+  <main id="icerik">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-bg" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow">Oto servisler için yönetim platformu</span>
+          <h1>Servisinizin tüm kayıtları <span class="hl">tek panelde.</span></h1>
+          <p class="lead">Müşteri ve araç kartları, servis girişi, usta işçilikleri, borç-alacak ve gelir takibi. Kâğıt deftere, dağınık Excel dosyalarına son; telefondan, tabletten veya bilgisayardan her yerden erişin.</p>
+          <div class="hero-cta">
+            <a href="/panel#kayit" class="btn btn-primary btn-lg" data-auth-link="register">30 Gün Ücretsiz Deneyin</a>
+            <a href="#fiyatlar" class="btn btn-outline btn-lg">Paketleri İncele</a>
+          </div>
+          <ul class="hero-points">
+            <li>Kredi kartı gerekmez</li>
+            <li>Kurulum yok, tarayıcıdan çalışır</li>
+            <li>Verileriniz yalnızca ekibinize açık</li>
+          </ul>
         </div>
-        <!-- Arama Sonuç Paneli -->
-        <div class="search-results-panel" id="searchResultsPanel"></div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="mock-window">
+            <div class="mock-bar"><i></i><i></i><i></i><span>osion.ziftstudio.site/panel</span></div>
+            <div class="mock-body">
+              <div class="mock-stats">
+                <div><small>Bu ay ciro</small><b>₺184.250</b><em class="up">+12%</em></div>
+                <div><small>Servisteki araç</small><b>14</b><em>bugün 3 giriş</em></div>
+                <div><small>Tahsil edilecek</small><b>₺23.900</b><em class="warn">6 araç</em></div>
+              </div>
+              <div class="mock-chart">
+                <span style="height:38%"></span><span style="height:52%"></span><span style="height:46%"></span>
+                <span style="height:70%"></span><span style="height:62%"></span><span style="height:88%"></span>
+              </div>
+              <div class="mock-card">
+                <div class="mock-card-head">
+                  <span class="mock-logo">VW</span>
+                  <div><b>Volkswagen Golf</b><small>2019 model · 3 servis kaydı</small></div>
+                  <span class="mock-plate"><i>TR</i>34 OSN 34</span>
+                </div>
+                <div class="mock-chips"><span>📅 14.10.2026</span><span class="mono">VIN WVWZZZ1KZ8W123456</span></div>
+                <div class="mock-actions"><span class="g">Ara</span><span class="b">Geçmiş</span><span>Düzenle</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="float-card float-scan">
+            <span class="float-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg></span>
+            <div><b>Şasi no okundu</b><small>Kamerayla 2 saniyede</small></div>
+          </div>
+          <div class="float-card float-pay">
+            <span class="float-ic ok">✓</span>
+            <div><b>Ödeme alındı</b><small>₺4.750 · Nakit</small></div>
+          </div>
+        </div>
       </div>
-      
-      <div class="topbar-right">
-        <div class="current-date">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          <span id="currentDateText">25 Haziran 2026</span>
+    </section>
+
+    <!-- GÜVEN ŞERİDİ -->
+    <section class="trust">
+      <div class="container trust-grid">
+        <div><b>16</b><span>usta / iş kolu için işçilik girişi</span></div>
+        <div><b>3</b><span>rol: sahip, yönetici, çalışan</span></div>
+        <div><b>%100</b><span>bulut — yedek ve kurulum derdi yok</span></div>
+        <div><b>7/24</b><span>telefondan ve bilgisayardan erişim</span></div>
+      </div>
+    </section>
+
+    <!-- ÖZELLİKLER -->
+    <section class="section" id="ozellikler">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Özellikler</span>
+          <h2>Atölyenizin günlük işleri için tasarlandı</h2>
+          <p>Ustaların ve servis sahiplerinin gerçekte kullandığı işlere odaklandık: hızlı kayıt, kolay arama ve net hesap.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <h3>Müşteri ve araç kartları</h3>
+            <p>Her müşterinin araçları, telefonu ve notları tek kartta. Markaya göre klasörlenmiş araç arşivi, plaka ile anında arama.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg></span>
+            <h3>Şasi numarasını kamerayla okutun</h3>
+            <p>17 haneli şasi numarasını tek tek yazmayın; telefon kamerasıyla barkoddan veya yazıdan okutun, onaylayın, kaydedin.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+            <h3>Servis girişi ve usta işçilikleri</h3>
+            <p>Mekanik, elektrik, kaporta, boya ve 12 iş kolu daha. Her ustanın işçiliğini ayrı girin, toplam otomatik hesaplansın.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+            <h3>Borç ve tahsilat takibi</h3>
+            <p>Nakit, havale, kart veya kısmi ödeme. Kimin ne kadar borcu kaldığını tek listede görün, tahsil edince tek tıkla kapatın.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+            <h3>Gelir grafikleri</h3>
+            <p>Son 6 ayın iş hacmi, ödeme dağılımı ve borçlu araçlar genel durum panelinde. İşinizin gidişatını rakamlarla izleyin.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+            <h3>E-posta ile servis fişi</h3>
+            <p>"Aracınız hazır", bakım ve ödeme hatırlatmaları ile servis fişini kendi işletme e-postanızdan müşteriye gönderin.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M17 20h4v-3"/></svg></span>
+            <h3>QR kodla ekip daveti</h3>
+            <p>Çalışanınızı ekleyin: ekranda QR kodu açın, yeni üye telefonuyla okutsun. Rol bazlı yetkiyle kim neyi yapabilir siz belirleyin.</p>
+          </article>
+          <article class="feature">
+            <span class="feature-ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <h3>Güvenli ve size özel</h3>
+            <p>Her işletmenin verisi veritabanı düzeyinde ayrılır; başka bir işletme sizin kayıtlarınızı göremez. Bağlantılar şifrelidir.</p>
+          </article>
         </div>
       </div>
-    </header>
+    </section>
 
-    <!-- SAYFA DETAYLARI -->
-    <div class="page-container">
-
-      <!-- ==================== DASHBOARD VIEW ==================== -->
-      <section id="view-dashboard" class="page-view">
-        <div class="page-header">
-          <h1 class="page-title">Genel Durum Paneli</h1>
-          <p class="page-description">Servisin güncel durum metrikleri, gelir grafikleri ve borçlu araç listesi.</p>
+    <!-- NASIL ÇALIŞIR -->
+    <section class="section section-alt" id="nasil-calisir">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Nasıl çalışır?</span>
+          <h2>Üç adımda kullanmaya başlayın</h2>
         </div>
+        <ol class="steps">
+          <li>
+            <span class="step-no">1</span>
+            <h3>İşletmenizi oluşturun</h3>
+            <p>E-posta adresinizle hesap açın, dükkan adınızı, telefon ve adresinizi girin. Birkaç dakika sürer.</p>
+          </li>
+          <li>
+            <span class="step-no">2</span>
+            <h3>Müşteri ve aracı kaydedin</h3>
+            <p>Markayı ve modeli listeden seçin, plakayı yazın, şasi numarasını kamerayla okutun.</p>
+          </li>
+          <li>
+            <span class="step-no">3</span>
+            <h3>Servis kaydını girin</h3>
+            <p>Yapılan işleri ve ustaları seçin, ödemeyi kaydedin. Geçmiş, borç ve gelir otomatik oluşur.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
 
-        <!-- Bento Grid Metrik Kartları -->
-        <div class="bento-metrics-grid">
-          <div class="bento-card">
-            <div class="bento-card-header">
-              <span class="bento-card-title">Kayıtlı Müşteri</span>
-              <div class="bento-card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              </div>
-            </div>
-            <div class="bento-card-value" id="metric-total-customers">0</div>
-            <div class="bento-card-footer">Sisteme kayıtlı toplam müşteri sayısı</div>
-          </div>
-          <div class="bento-card">
-            <div class="bento-card-header">
-              <span class="bento-card-title">Kayıtlı Araç</span>
-              <div class="bento-card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-              </div>
-            </div>
-            <div class="bento-card-value" id="metric-total-vehicles">0</div>
-            <div class="bento-card-footer">Sisteme kayıtlı aktif araç sayısı</div>
-          </div>
-          <div class="bento-card">
-            <div class="bento-card-header">
-              <span class="bento-card-title">Toplam Borç (Alacak)</span>
-              <div class="bento-card-icon" style="color: var(--danger);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              </div>
-            </div>
-            <div class="bento-card-value" style="color: var(--danger);" id="metric-total-debt">0.00 ₺</div>
-            <div class="bento-card-footer">Tahsil edilmemiş toplam servis tutarı</div>
-          </div>
-          <div class="bento-card">
-            <div class="bento-card-header">
-              <span class="bento-card-title">Toplam Gelir (Tahsil Edilen)</span>
-              <div class="bento-card-icon" style="color: var(--success);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-              </div>
-            </div>
-            <div class="bento-card-value" style="color: var(--success);" id="metric-total-revenue">0.00 ₺</div>
-            <div class="bento-card-footer">Ödenmiş toplam servis tutarı</div>
-          </div>
+    <!-- FİYATLAR -->
+    <section class="section" id="fiyatlar">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Paketler</span>
+          <h2>İşletmenize uygun paketi seçin</h2>
+          <p>Tüm paketler 30 gün ücretsiz deneme ile başlar. İstediğiniz zaman paket değiştirebilirsiniz.</p>
         </div>
-
-        <!-- Bento Grid Grafikler -->
-        <div class="bento-charts-grid">
-          <div class="bento-card chart-card">
-            <h2 class="chart-card-title">Aylık Gelir Durumu</h2>
-            <div class="chart-container">
-              <canvas id="monthlyEarningsChart"></canvas>
-            </div>
-          </div>
-          <div class="bento-card chart-card">
-            <h2 class="chart-card-title">Ödeme Dağılım Oranı</h2>
-            <div class="chart-container">
-              <canvas id="paymentStatusChart"></canvas>
-            </div>
-          </div>
+        <div class="billing-toggle" role="radiogroup" aria-label="Ödeme dönemi">
+          <button type="button" role="radio" aria-checked="true" data-period="monthly" class="active">Aylık</button>
+          <button type="button" role="radio" aria-checked="false" data-period="yearly">Yıllık <span class="save-badge" id="yearlySave">2 ay bedava</span></button>
         </div>
-
-        <!-- Borçlu Araçlar Bento Bölümü -->
-        <div class="dashboard-section">
-          <h2 class="dashboard-section-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--danger);"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-            Borçlu Araçlar Paneli (Ödenmeyen Kayıtlar)
-          </h2>
-          <div class="debtor-grid" id="debtorVehiclesList">
-            <!-- Dinamik doldurulacaktır -->
-          </div>
+        <div class="pricing-grid" id="pricingGrid" aria-live="polite">
+          <div class="pricing-loading"><span class="spinner" aria-hidden="true"></span> Paketler yükleniyor…</div>
         </div>
-      </section>
+        <p class="pricing-note">Fiyatlara KDV dahil değildir. Kurumsal ihtiyaçlar ve tek seferlik lisans için bizimle iletişime geçin.</p>
+      </div>
+    </section>
 
-      <!-- ==================== CUSTOMERS & VEHICLES VIEW ==================== -->
-      <section id="view-customers" class="page-view hidden">
-        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-          <div>
-            <h1 class="page-title">Müşteri & Araç Kayıt Yönetimi</h1>
-            <p class="page-description">Yeni müşteriler kaydedin, araç ekleyin ve ilişkili kayıtları yönetin.</p>
-          </div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button type="button" class="btn btn-primary" onclick="openNewCustomerModal()" style="font-weight: 600;">
-              + Yeni Müşteri Ekle
-            </button>
-            <button type="button" class="btn btn-accent" onclick="openNewVehicleModal()" style="font-weight: 600;">
-              + Yeni Araç Ekle
-            </button>
-          </div>
+    <!-- SSS -->
+    <section class="section section-alt" id="sss">
+      <div class="container narrow">
+        <div class="section-head">
+          <span class="eyebrow">Sık sorulan sorular</span>
+          <h2>Aklınıza takılanlar</h2>
         </div>
-
-        <!-- Hızlı Kayıt Buton Kartları Grid -->
-        <div class="registration-cards-grid">
-          <div class="panel-card reg-card" style="border-left: 4px solid var(--accent);">
-            <div>
-              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent);"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
-                <h3 class="reg-card-title">1. Yeni Müşteri Kaydı</h3>
-              </div>
-              <p class="reg-card-desc">Sisteme yeni bir müşteri ve iletişim bilgisi eklemek için tıklayın.</p>
-            </div>
-            <button type="button" class="btn btn-primary reg-card-btn" onclick="openNewCustomerModal()">
-              + Yeni Müşteri Kaydı Aç
-            </button>
-          </div>
-
-          <div class="panel-card reg-card" style="border-left: 4px solid var(--success);">
-            <div>
-              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--success);"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                <h3 class="reg-card-title">2. Mevcut Müşteriye Araç Ekle</h3>
-              </div>
-              <p class="reg-card-desc">Sistemdeki kayıtlı bir müşteriye yeni plaka/araç eklemek için tıklayın.</p>
-            </div>
-            <button type="button" class="btn btn-accent reg-card-btn" onclick="openNewVehicleModal()">
-              + Yeni Araç Kaydı Aç
-            </button>
-          </div>
+        <div class="faq">
+          <details>
+            <summary>Deneme süresi bitince ne olur?</summary>
+            <p>30 günlük deneme sonunda paket seçip aboneliğinizi başlatabilirsiniz. Abonelik başlatmasanız bile kayıtlarınız silinmez; görüntülemeye devam edersiniz, yeni kayıt için abonelik gerekir.</p>
+          </details>
+          <details>
+            <summary>Bilgisayara program kurmam gerekiyor mu?</summary>
+            <p>Hayır. OSION tarayıcıdan çalışır. Telefon, tablet veya bilgisayardan giriş yapmanız yeterli; isterseniz telefonunuzun ana ekranına uygulama gibi ekleyebilirsiniz.</p>
+          </details>
+          <details>
+            <summary>Çalışanlarımı nasıl eklerim?</summary>
+            <p>İşletme Ayarları &gt; Ekip bölümünden davet oluşturun. Çalışanınız ekrandaki QR kodu telefonuyla okutur veya davet kodunu girer ve ekibe katılır. Paketinizin kullanıcı sınırı kadar kişi ekleyebilirsiniz.</p>
+          </details>
+          <details>
+            <summary>Verilerim güvende mi?</summary>
+            <p>Veriler şifreli bağlantıyla, güvenli bulut sunucularında saklanır. Her işletmenin kayıtları veritabanı düzeyinde ayrıdır; yalnızca sizin ekibiniz erişebilir. Dilediğiniz zaman verilerinizi dışa aktarabilirsiniz.</p>
+          </details>
+          <details>
+            <summary>Şasi numarası okutma hangi telefonlarda çalışır?</summary>
+            <p>Kameralı tüm güncel Android ve iPhone cihazlarda tarayıcıdan çalışır. Kapı direğindeki etiket barkodunu veya ön camdaki şasi yazısını okutabilirsiniz; okunan numarayı kaydetmeden önce kontrol edersiniz.</p>
+          </details>
+          <details>
+            <summary>Paketimi sonradan değiştirebilir miyim?</summary>
+            <p>Evet. İşletmeniz büyüdükçe üst pakete geçebilirsiniz; kayıtlarınız olduğu gibi kalır.</p>
+          </details>
         </div>
+      </div>
+    </section>
 
-        <!-- Müşteri ve Araç Arama & Hızlı Liste -->
-        <div class="panel-card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
-            <h2 class="card-title" style="margin: 0;">Kayıtlı Müşteriler ve Araçlar</h2>
-            <div style="display: flex; gap: 8px;">
-              <button type="button" class="btn btn-secondary btn-mini" onclick="switchView('only-customers')">Tüm Müşteriler &rarr;</button>
-              <button type="button" class="btn btn-secondary btn-mini" onclick="switchView('only-vehicles')">Tüm Araçlar &rarr;</button>
-            </div>
-          </div>
-          <div class="page-search-wrapper">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="regPageSearch" class="form-control page-search-input" placeholder="Müşteri, telefon veya plaka ile ara..." oninput="filterRegPageList()">
-          </div>
-          <div class="only-customers-grid" id="regPageContainer">
-            <!-- Dinamik müşteri ve araç kartları buraya yüklenecektir -->
-          </div>
+    <!-- SON ÇAĞRI -->
+    <section class="cta-band">
+      <div class="container cta-inner">
+        <div>
+          <h2>Servisinizi dijitale taşımaya hazır mısınız?</h2>
+          <p>30 gün boyunca tüm özellikleri ücretsiz deneyin. Kredi kartı gerekmez.</p>
         </div>
-      </section>
-
-      <!-- ==================== SERVICE RECORDS VIEW ==================== -->
-      <section id="view-services" class="page-view hidden">
-        <div class="page-header">
-          <h1 class="page-title">Servis Girişi ve İşlem Kaydı</h1>
-          <p class="page-description">Servise giren araçlar için usta görevlendirmesi yapın, yapılan işlemleri seçin ve ödemeyi kaydedin.</p>
+        <div class="cta-actions">
+          <a href="/panel#kayit" class="btn btn-white btn-lg" data-auth-link="register">Hemen Başlayın</a>
+          <a href="/panel#giris" class="btn btn-outline-white btn-lg" data-auth-link="login">Giriş Yap</a>
         </div>
-
-        <!-- Adım İlerleme Çubuğu (Step Progress Bar) -->
-        <div class="step-progress-bar" id="serviceStepProgressBar">
-          <div class="step-item active" id="stepIndicator1" onclick="goToServiceStep(1)">
-            <div class="step-number">1</div>
-            <span>Araç & Tarih</span>
-          </div>
-          <div class="step-divider"></div>
-          <div class="step-item" id="stepIndicator2" onclick="goToServiceStep(2)">
-            <div class="step-number">2</div>
-            <span>Yapılan İşlemler</span>
-          </div>
-          <div class="step-divider"></div>
-          <div class="step-item" id="stepIndicator3" onclick="goToServiceStep(3)">
-            <div class="step-number">3</div>
-            <span>Ücret & Ödeme</span>
-          </div>
-        </div>
-
-        <div class="single-form-container">
-          <div class="panel-card">
-            <h2 class="card-title" id="serviceFormTitle">Yeni Servis Kaydı</h2>
-            <form id="serviceForm" onsubmit="handleServiceSubmit(event)">
-              <!-- Gizli Düzenleme ID -->
-              <input type="hidden" id="s_recordId">
-              
-              <!-- ADIM 1: ARAÇ VE TARIH BİLGİLERİ -->
-              <div id="serviceStep1" class="service-step-section">
-                <div class="form-group customer-combobox-group vehicle-combobox-group" style="position: relative;">
-                  <label class="form-label" for="s_vehicleSearchInput">Servise Giren Araç *</label>
-                  <input type="hidden" id="s_vehicleId" required>
-                  <div class="combobox-wrapper">
-                    <svg class="combobox-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    </svg>
-                    <input type="text" id="s_vehicleSearchInput" class="form-control combobox-input" placeholder="Plaka, marka, model veya müşteri adı yazın..." autocomplete="off" oninput="handleVehicleComboboxSearch(this.value)" onfocus="handleVehicleComboboxSearch(this.value)">
-                    <button type="button" class="combobox-clear-btn hidden" id="s_vehicleClearBtn" onclick="clearVehicleCombobox()" title="Temizle">&times;</button>
-                  </div>
-                  <div class="selected-customer-banner hidden" id="s_vehicleSelectedBadge"></div>
-                  <div class="combobox-results-panel hidden" id="s_vehicleDropdownResults"></div>
-                </div>
-
-                <!-- Seçili Araç Özet Kartı -->
-                <div id="selectedVehicleSummaryCard" class="selected-vehicle-summary-card hidden">
-                  <div>
-                    <div class="selected-vehicle-title" id="svSummaryTitle">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                      <span id="svPlateText"></span> - <span id="svBrandText"></span>
-                    </div>
-                    <div class="selected-vehicle-meta" id="svOwnerText"></div>
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label" for="s_km">Giriş Kilometresi *</label>
-                  <input type="number" id="s_km" class="form-control" placeholder="Örn: 145200" required min="0">
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label" for="s_date">Servis Kayıt Tarihi *</label>
-                  <input type="date" id="s_date" class="form-control" required>
-                </div>
-
-                <div class="form-actions">
-                  <div></div>
-                  <button type="button" class="btn btn-accent" onclick="goToServiceStep(2)">
-                    İlerle: İşlemler & Ustalar &rarr;
-                  </button>
-                </div>
-              </div>
-
-              <!-- ADIM 2: USTA GÖREVLENDİRME VE İŞLEMLER -->
-              <div id="serviceStep2" class="service-step-section hidden">
-                <div class="form-group">
-                  <label class="form-label" style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Usta Görevlendirme ve Yapılan İşlemler</label>
-                  <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 14px;">Yapılan işlemleri kategorilerden seçin, ardından açılan kutulara ücret ve not girin.</p>
-                  
-                  <!-- Kategorize Edilmiş Usta Onay Chiplei -->
-                  <div id="mechanicsCheckboxes">
-                    <!-- Dinamik kategorize çipler yüklenecektir -->
-                  </div>
-
-                  <div id="dynamicMechanicBoxes">
-                    <!-- Seçilen usta detay giriş panelleri -->
-                  </div>
-                </div>
-
-                <div class="form-group" style="margin-top: 16px;">
-                  <label class="form-label" for="s_summary">Genel İşlem Özeti ve Müşteri Notu</label>
-                  <textarea id="s_summary" class="form-control" placeholder="Örn: Yağ bakımı ve fren balata değişimi yapıldı. Müşteriye 5.000 km sonra kontrol önerildi." rows="3"></textarea>
-                </div>
-
-                <div class="form-actions">
-                  <button type="button" class="btn btn-secondary" onclick="goToServiceStep(1)">&larr; Geri (Araç Seçimi)</button>
-                  <button type="button" class="btn btn-accent" onclick="goToServiceStep(3)">İlerle: Ücret & Ödeme &rarr;</button>
-                </div>
-              </div>
-
-              <!-- ADIM 3: ÜCRET VE ÖDEME -->
-              <div id="serviceStep3" class="service-step-section hidden">
-                <div class="form-group">
-                  <label class="form-label" for="s_paymentStatus">Ödeme Durumu *</label>
-                    <select id="s_paymentStatus" class="form-control" required style="font-weight: 600;" onchange="handlePaymentStatusChange()">
-                    <option value="Ödenmedi">Ödenmedi (Borç Kaydı)</option>
-                    <option value="Kısmi Ödendi">Kısmi Ödendi</option>
-                    <option value="Nakit Ödendi">Nakit Ödendi</option>
-                    <option value="Havale Yapıldı">Havale Yapıldı</option>
-                    <option value="Kartla Ödendi">Kartla Ödendi (Kredi / Banka Kartı)</option>
-                    
-                  </select>
-                </div>
-
-                <!-- Ücret Özet Kartı -->
-                <div class="fee-breakdown-card" id="feeBreakdownCard">
-                  <div class="fee-row">
-                    <span>Usta / İşçilik Toplamı:</span>
-                    <strong id="feeLaborTotal">0,00 ₺</strong>
-                  </div>
-                  <div class="fee-row total">
-                    <span>GENEL ÜCRET TOPLAMI:</span>
-                    <span id="feeGrandTotalDisplay" style="color: var(--accent);">0,00 ₺</span>
-                  </div>
-                  <div id="partialPaymentFields" class="partial-payment-fields hidden">
-                    <div class="form-group">
-                      <label class="form-label" for="s_paidAmount">Alınan Ödeme (<span data-currency-symbol>₺</span>) *</label>
-                      <input type="number" id="s_paidAmount" class="form-control" min="0" step="0.01" placeholder="Örn: 2.500" oninput="calculateRemainingAmount()">
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label" for="s_remainingAmount">Kalan Ödeme (<span data-currency-symbol>₺</span>)</label>
-                      <input type="number" id="s_remainingAmount" class="form-control" readonly tabindex="-1">
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Gizli/Yedek Input (Veri modelini bozmamak için) -->
-                <input type="hidden" id="s_totalFee" value="0">
-
-                <div class="form-actions" style="margin-top: 24px;">
-                  <button type="button" class="btn btn-secondary" onclick="goToServiceStep(2)">&larr; Geri (İşlemler)</button>
-                  <button type="button" class="btn btn-secondary" onclick="resetServiceForm()">Temizle</button>
-                  <button type="submit" class="btn btn-primary" id="btnSaveService" style="padding: 10px 24px; font-weight: 700;">
-                    ✓ Servis Kaydını Tamamla
-                  </button>
-                </div>
-              </div>
-
-            </form>
-          </div>
-        </div>
-      </section>
-
-
-      <!-- ==================== SERVICE LOG VIEW ==================== -->
-      <section id="view-services-log" class="page-view hidden">
-        <div class="page-header">
-          <h1 class="page-title">Servis Notları (Geçmiş)</h1>
-          <p class="page-description">Geçmiş servis işlemlerinin ve kayıtlarının tam listesi.</p>
-        </div>
-        <div class="panel-card" style="display: flex; flex-direction: column;">
-          <div class="page-search-wrapper">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="servicesLogSearch" class="form-control page-search-input" placeholder="Servis notlarında ara (plaka, usta, not)..." oninput="filterServicesLog()">
-          </div>
-          <div class="service-log-list" id="servicesLogContainer">
-            <!-- Dinamik doldurulacaktır -->
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== ONLY CUSTOMERS LIST VIEW ==================== -->
-      <section id="view-only-customers" class="page-view hidden">
-        <div class="page-header">
-          <h1 class="page-title">Müşteriler</h1>
-          <p class="page-description">Kayıtlı tüm müşterilerinizin listesi (Alfabeye göre sıralı).</p>
-        </div>
-        <div class="panel-card">
-          <div class="page-search-wrapper">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="onlyCustomersSearch" class="form-control page-search-input" placeholder="Müşterilerde ara (isim, telefon, referans)..." oninput="filterOnlyCustomers()">
-          </div>
-          <div class="only-customers-grid" id="onlyCustomersContainer">
-            <!-- Dinamik müşteri kartları buraya gelecek -->
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== ONLY VEHICLES LIST VIEW ==================== -->
-      <section id="view-only-vehicles" class="page-view hidden">
-        <div class="page-header">
-          <h1 class="page-title">Araçlar</h1>
-          <p class="page-description">Kayıtlı tüm araçların markalara göre klasörlenmiş listesi.</p>
-        </div>
-        <div class="panel-card">
-          <!-- Marka Klasörleri Filtre Barı -->
-          <div class="brand-folders-wrapper">
-            <div class="brand-folders-header">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              <span>Araç Marka Klasörleri</span>
-            </div>
-            <div class="brand-folders-grid" id="brandFoldersContainer">
-              <!-- Dinamik olarak marka klasör kartları eklenecektir -->
-            </div>
-          </div>
-
-          <div class="page-search-wrapper" style="margin-top: 14px;">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="onlyVehiclesSearch" class="form-control page-search-input" placeholder="Araçlarda ara (plaka, marka, model, şasi no)..." oninput="filterOnlyVehicles()">
-          </div>
-          
-          <div class="brand-active-info" id="brandActiveInfo" style="margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--accent); display: none;">
-            <!-- Aktif klasör filtresi bilgisi -->
-          </div>
-
-          <div class="only-vehicles-grid" id="onlyVehiclesContainer">
-            <!-- Dinamik araç kartları buraya gelecek -->
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== CALENDAR / DATES VIEW ==================== -->
-      <section id="view-calendar" class="page-view hidden">
-        <div class="page-header">
-          <h1 class="page-title">Araç Giriş Takvimi</h1>
-          <p class="page-description">Günlere göre servise giriş yapan araçların takvimi ve detayları.</p>
-        </div>
-        
-        <div class="calendar-split-layout">
-          <!-- Sol Taraf: Takvim -->
-          <div class="calendar-panel panel-card">
-            <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <button type="button" class="btn btn-secondary btn-mini" onclick="navigateCalendar(-1)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; vertical-align: middle;"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <h2 id="calendarMonthTitle" class="calendar-month-title" style="font-size: 18px; font-weight: 600; margin: 0;">Haziran 2026</h2>
-              <button type="button" class="btn btn-secondary btn-mini" onclick="navigateCalendar(1)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px; vertical-align: middle;"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </div>
-            
-            <div class="calendar-weekdays" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; font-weight: 600; color: var(--text-secondary); padding-bottom: 8px; border-bottom: 1px solid var(--border-color);">
-              <div>Pzt</div><div>Sal</div><div>Çar</div><div>Per</div><div>Cum</div><div>Cmt</div><div>Paz</div>
-            </div>
-            
-            <div class="calendar-days-grid" id="calendarDaysGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px;">
-              <!-- Dinamik günler buraya gelecek -->
-            </div>
-          </div>
-          
-          <!-- Sağ Taraf: Günlük Detaylar -->
-          <div class="calendar-detail-panel panel-card">
-            <h2 class="card-title" id="selectedDateTitle">Seçili Günün Girişleri</h2>
-            <div class="calendar-detail-list" id="selectedDateVehiclesList">
-              <!-- Dinamik araçlar buraya gelecek -->
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== DEBTS LIST VIEW ==================== -->
-      <section id="view-debts" class="page-view hidden">
-        <div class="page-header">
-          <h1 class="page-title">Borç Listesi</h1>
-          <p class="page-description">Ödemesi yapılmamış veya kısmi yapılmış tüm servis kayıtlarının takibi.</p>
-        </div>
-
-        <!-- Borç Metrik Kartları -->
-        <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
-          <div class="stat-card">
-            <div class="stat-title">Toplam Borç Miktarı</div>
-            <div class="stat-value" id="debtTotalAmount" style="color: var(--danger);">0 ₺</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-title">Bekleyen Kayıt Sayısı</div>
-            <div class="stat-value" id="debtTotalCount">0</div>
-          </div>
-        </div>
-
-        <div class="panel-card">
-          <div class="page-search-wrapper">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" id="debtsSearch" class="form-control page-search-input" placeholder="Borç kayıtlarında ara (müşteri, plaka)..." oninput="filterDebtsList()">
-          </div>
-          <div class="service-log-list" id="debtsContainer">
-            <!-- Dinamik doldurulacaktır -->
-          </div>
-        </div>
-      </section>
-
-      <!-- ==================== İŞLETME AYARLARI ==================== -->
-      <section id="view-settings" class="page-view hidden">
-        <div class="page-header">
-          <h1 class="page-title">İşletme Ayarları</h1>
-          <p class="page-description">İşletme profili, ekip, abonelik ve hesap ayarlarınız.</p>
-        </div>
-
-        <div class="settings-tabs" role="tablist" aria-label="Ayar bölümleri">
-          <button type="button" class="settings-tab manager-only" role="tab" data-settings-tab="profile" onclick="showSettingsTab('profile')">İşletme Profili</button>
-          <button type="button" class="settings-tab manager-only" role="tab" data-settings-tab="team" onclick="showSettingsTab('team')">Ekip ve Davetler</button>
-          <button type="button" class="settings-tab manager-only" role="tab" data-settings-tab="mail" onclick="showSettingsTab('mail')">E-posta</button>
-          <button type="button" class="settings-tab manager-only" role="tab" data-settings-tab="plan" onclick="showSettingsTab('plan')">Abonelik</button>
-          <button type="button" class="settings-tab" role="tab" data-settings-tab="account" onclick="showSettingsTab('account')">Hesabım</button>
-        </div>
-
-        <!-- İşletme profili -->
-        <div class="settings-panel" data-settings-panel="profile">
-          <form id="profileForm" class="panel-card" onsubmit="handleProfileSubmit(event)" novalidate>
-            <div class="form-alert hidden" id="profileAlert" role="alert"></div>
-            <div id="profileFields"></div>
-            <div class="form-actions">
-              <div></div>
-              <button type="submit" class="btn btn-primary" id="btnSaveProfile">Değişiklikleri Kaydet</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Ekip ve davetler -->
-        <div class="settings-panel hidden" data-settings-panel="team">
-          <div class="panel-card">
-            <div class="settings-card-header">
-              <h2 class="card-title">Ekip Üyeleri</h2>
-              <span class="seat-badge" id="seatBadge"></span>
-            </div>
-            <div id="membersList" class="member-list"></div>
-          </div>
-          <div class="panel-card">
-            <h2 class="card-title">Yeni Kullanıcı Davet Et</h2>
-            <p class="card-desc">Davet kodu oluşturulur; kodu çalışanınızla paylaşın. Kod 7 gün geçerlidir ve yalnızca belirtilen e-posta adresiyle kullanılabilir.</p>
-            <form id="inviteCreateForm" class="invite-create-form" onsubmit="handleCreateInvite(event)" novalidate>
-              <div class="form-group">
-                <label class="form-label" for="newInviteEmail">E-posta *</label>
-                <input type="email" id="newInviteEmail" class="form-control" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="newInviteRole">Rol *</label>
-                <select id="newInviteRole" class="form-control">
-                  <option value="staff">Çalışan — kayıt ekler/düzenler, silemez</option>
-                  <option value="admin" class="owner-only">Yönetici — silme, ayarlar ve ekip yönetimi</option>
-                </select>
-              </div>
-              <button type="submit" class="btn btn-primary" id="btnCreateInvite">Davet Oluştur</button>
-            </form>
-            <div class="invite-result hidden" id="inviteResult"></div>
-          </div>
-          <div class="panel-card">
-            <h2 class="card-title">Bekleyen Davetler</h2>
-            <div id="invitesList" class="member-list"></div>
-          </div>
-        </div>
-
-        <!-- E-posta (araç sahiplerine işletmenin kendi adresinden) -->
-        <div class="settings-panel hidden" data-settings-panel="mail">
-          <form id="mailSettingsForm" class="panel-card" onsubmit="handleMailSettingsSubmit(event)" novalidate>
-            <div class="settings-card-header">
-              <h2 class="card-title">İşletme E-postası</h2>
-              <span class="seat-badge" id="mailStatusBadge"></span>
-            </div>
-            <p class="card-desc">Servis fişleri ve müşteri mesajları araç sahiplerine bu adresten gönderilir; yanıtlar doğrudan bu adrese gelir.</p>
-            <div class="form-alert hidden" id="mailAlert" role="alert"></div>
-            <div id="mailFields"></div>
-            <div class="form-actions mail-actions">
-              <button type="button" class="btn btn-danger btn-mini hidden" id="btnDeleteMail" onclick="handleMailDelete()">Kaldır</button>
-              <button type="button" class="btn btn-secondary hidden" id="btnTestMail" onclick="handleMailTest()">Test E-postası Gönder</button>
-              <button type="submit" class="btn btn-primary" id="btnSaveMail">Kaydet</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Abonelik -->
-        <div class="settings-panel hidden" data-settings-panel="plan">
-          <div class="panel-card" id="planDetails"></div>
-        </div>
-
-        <!-- Hesabım -->
-        <div class="settings-panel hidden" data-settings-panel="account">
-          <div class="panel-card">
-            <h2 class="card-title">Hesap Bilgileri</h2>
-            <div id="accountInfo" class="account-info"></div>
-            <div id="tenantSwitch" class="hidden"></div>
-          </div>
-          <form class="panel-card" id="passwordForm" onsubmit="handlePasswordChange(event)" novalidate>
-            <h2 class="card-title">Şifre Değiştir</h2>
-            <div class="form-alert hidden" id="passwordAlert" role="alert"></div>
-            <div class="form-group">
-              <label class="form-label" for="pw_current">Mevcut şifre</label>
-              <input type="password" id="pw_current" class="form-control" autocomplete="current-password" required>
-            </div>
-            <div class="form-row-2">
-              <div class="form-group">
-                <label class="form-label" for="pw_new">Yeni şifre</label>
-                <input type="password" id="pw_new" class="form-control" autocomplete="new-password" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="pw_new2">Yeni şifre (tekrar)</label>
-                <input type="password" id="pw_new2" class="form-control" autocomplete="new-password" required>
-              </div>
-            </div>
-            <p class="field-hint">Şifre değiştiğinde diğer cihazlardaki oturumlarınız kapatılır.</p>
-            <div class="form-actions"><div></div><button type="submit" class="btn btn-primary" id="btnChangePassword">Şifreyi Güncelle</button></div>
-          </form>
-          <div class="panel-card danger-zone owner-only">
-            <h2 class="card-title">Veri ve Hesap Kapatma</h2>
-            <p class="card-desc">İşletmenizin tüm müşteri, araç ve servis kayıtlarını JSON dosyası olarak indirebilirsiniz.</p>
-            <button type="button" class="btn btn-secondary" id="btnExportData" onclick="handleExportData()">Verileri Dışa Aktar (JSON)</button>
-            <hr class="danger-divider">
-            <form id="closeAccountForm" onsubmit="handleCloseAccount(event)" novalidate>
-              <p class="card-desc"><strong>İşletme hesabını kapat:</strong> Tüm kullanıcıların erişimi hemen kapatılır. Verileriniz <span id="retentionDaysText">30</span> gün boyunca saklanır, bu süre içinde hizmet sağlayıcınız hesabı geri açabilir; süre sonunda kalıcı olarak silinir.</p>
-              <div class="form-alert hidden" id="closeAlert" role="alert"></div>
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label class="form-label" for="close_name">Onay için işletme adını yazın</label>
-                  <input type="text" id="close_name" class="form-control" autocomplete="off" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="close_password">Şifreniz</label>
-                  <input type="password" id="close_password" class="form-control" autocomplete="current-password" required>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-danger" id="btnCloseAccount">İşletme Hesabını Kapat</button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-    </div>
+      </div>
+    </section>
   </main>
 
-  <!-- ==================== MODAL: CUSTOMER EDIT ==================== -->
-  <div class="modal-backdrop hidden" id="customerEditModal">
-    <div class="modal-content">
-      <h2 class="card-title">Müşteri Bilgilerini Düzenle</h2>
-      <form id="editCustomerForm" onsubmit="handleCustomerEditSubmit(event)">
-        <input type="hidden" id="edit_c_id">
-        <div class="form-group">
-          <label class="form-label" for="edit_c_firstName">İsim *</label>
-          <input type="text" id="edit_c_firstName" class="form-control" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_c_lastName">Soyisim *</label>
-          <input type="text" id="edit_c_lastName" class="form-control" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_c_phone">Telefon *</label>
-          <input type="tel" id="edit_c_phone" class="form-control" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_c_email">E-posta</label>
-          <input type="email" id="edit_c_email" class="form-control" maxlength="120" autocomplete="off" placeholder="Servis fişi göndermek için (isteğe bağlı)">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_c_reference">Referans (Tanıdık/Getiren)</label>
-          <input type="text" id="edit_c_reference" class="form-control">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_c_notes">Müşteri Özel Notu</label>
-          <textarea id="edit_c_notes" class="form-control"></textarea>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary" onclick="closeCustomerEditModal()">Vazgeç</button>
-          <button type="submit" class="btn btn-primary" id="btnUpdateCustomer">Güncelle</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ==================== MODAL: VEHICLE EDIT ==================== -->
-  <div class="modal-backdrop hidden" id="vehicleEditModal">
-    <div class="modal-content">
-      <h2 class="card-title">Araç Bilgilerini Düzenle</h2>
-      <form id="editVehicleForm" onsubmit="handleVehicleEditSubmit(event)">
-        <input type="hidden" id="edit_v_id">
-        <div class="form-group customer-combobox-group" style="position: relative;">
-          <label class="form-label" for="edit_v_customerSearchInput">Sahibi (Müşteri) *</label>
-          <input type="hidden" id="edit_v_customerId" required>
-          <div class="combobox-wrapper">
-            <svg class="combobox-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input type="text" id="edit_v_customerSearchInput" class="form-control combobox-input" placeholder="Müşteri adı veya telefon yazarak ara..." autocomplete="off" oninput="handleCustomerComboboxSearch(this.value, 'edit_v_customerId', 'edit_v_customerDropdownResults', 'edit_v_customerSearchInput', 'edit_v_customerClearBtn', 'edit_v_customerSelectedBadge')" onfocus="handleCustomerComboboxSearch(this.value, 'edit_v_customerId', 'edit_v_customerDropdownResults', 'edit_v_customerSearchInput', 'edit_v_customerClearBtn', 'edit_v_customerSelectedBadge')">
-            <button type="button" class="combobox-clear-btn hidden" id="edit_v_customerClearBtn" onclick="clearCustomerCombobox('edit_v_customerId', 'edit_v_customerSearchInput', 'edit_v_customerClearBtn', 'edit_v_customerSelectedBadge')" title="Temizle">&times;</button>
-          </div>
-          <div class="selected-customer-banner hidden" id="edit_v_customerSelectedBadge"></div>
-          <div class="combobox-results-panel hidden" id="edit_v_customerDropdownResults"></div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_v_brand_select">Marka *</label>
-          <select id="edit_v_brand_select" class="form-control" required onchange="handleBrandSelectChange('edit_v_brand_select', 'edit_v_custom_brand_group', 'edit_v_custom_brand')">
-            <option value="">-- Marka Seçin --</option>
-            <option value="Volkswagen">Volkswagen</option>
-            <option value="Fiat">Fiat</option>
-            <option value="Toyota">Toyota</option>
-            <option value="Opel">Opel</option>
-            <option value="Renault">Renault</option>
-            <option value="Ford">Ford</option>
-            <option value="Hyundai">Hyundai</option>
-            <option value="BMW">BMW</option>
-            <option value="Mercedes-Benz">Mercedes-Benz</option>
-            <option value="Peugeot">Peugeot</option>
-            <option value="Citroën">Citroën</option>
-            <option value="Honda">Honda</option>
-            <option value="Nissan">Nissan</option>
-            <option value="Seat">Seat</option>
-            <option value="Skoda">Skoda</option>
-            <option value="Audi">Audi</option>
-            <option value="Kia">Kia</option>
-            <option value="OTHER_CUSTOM">+ Farklı Marka Yaz (Diğer)</option>
-          </select>
-        </div>
-        <div class="form-group hidden" id="edit_v_custom_brand_group">
-          <label class="form-label" for="edit_v_custom_brand">Farklı Marka İsmi *</label>
-          <input type="text" id="edit_v_custom_brand" class="form-control" placeholder="Örn: Mazda, Volvo, Dacia...">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_v_model">Model *</label>
-          <input type="text" id="edit_v_model" class="form-control" placeholder="Örn: Golf 1.6 TDI" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_v_plate">Plaka *</label>
-          <input type="text" id="edit_v_plate" class="form-control" placeholder="Örn: 34ABC123" required oninput="this.value = this.value.toUpperCase()">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_v_chassis">Şasi Numarası (VIN)</label>
-          <input type="text" id="edit_v_chassis" class="form-control" oninput="this.value = this.value.toUpperCase()">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_v_entryDate">Giriş Tarihi *</label>
-          <input type="date" id="edit_v_entryDate" class="form-control" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="edit_v_notes">Araç Özel Notu</label>
-          <textarea id="edit_v_notes" class="form-control"></textarea>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="btn btn-secondary" onclick="closeVehicleEditModal()">Vazgeç</button>
-          <button type="submit" class="btn btn-primary" id="btnUpdateVehicle">Güncelle</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ==================== MODAL: TRANSACTIONS / HISTORY ==================== -->
-  <div class="modal-backdrop hidden" id="historyModal">
-    <div class="modal-content" style="width: 700px; max-width: 95%; max-height: 85vh; display: flex; flex-direction: column;">
-      <h2 class="card-title" id="historyModalTitle" style="margin-bottom: 12px;">İşlem Geçmişi</h2>
-      <div id="historyModalBody" style="overflow-y: auto; flex: 1; padding-right: 4px;">
-        <!-- Dinamik olarak servis kayıtları listelenecek -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <a href="/" class="brand">
+          <span class="brand-mark"><img src="icons/logo-mark.png" alt="" width="26" height="26"></span>
+          <span class="brand-name">OSION</span>
+        </a>
+        <p>Oto servisleri için müşteri, araç, servis kaydı, borç ve gelir takip sistemi.</p>
       </div>
-      <div class="form-actions" style="margin-top: 16px;">
-        <button type="button" class="btn btn-secondary" onclick="closeHistoryModal()">Kapat</button>
-      </div>
+      <nav class="footer-links" aria-label="Alt menü">
+        <a href="#ozellikler">Özellikler</a>
+        <a href="#fiyatlar">Paketler</a>
+        <a href="/panel#giris">Giriş Yap</a>
+        <a href="kullanim-kosullari.html">Kullanım Koşulları</a>
+        <a href="gizlilik.html">KVKK Aydınlatma Metni</a>
+      </nav>
+      <img class="footer-credit" src="icons/zift-studio.png" alt="Zift Studio — Developed by Muhammet Ali Kıtır" width="150" height="44">
     </div>
-  </div>
+    <div class="container footer-bottom">© <span id="year">2026</span> OSION · Zift Studio</div>
+  </footer>
 
-  <!-- ==================== MODAL: YENİ MÜŞTERİ EKLE ==================== -->
-  <div class="modal-backdrop hidden" id="newCustomerModal">
-    <div class="modal-content" style="width: 520px;">
-      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent);"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
-          Yeni Müşteri Kaydı
-        </h2>
-        <button type="button" class="btn btn-secondary btn-mini modal-close-btn" onclick="closeNewCustomerModal()">&times;</button>
-      </div>
-      <form id="newCustomerModalForm" onsubmit="handleCustomerSubmit(event)">
-        <div class="form-group">
-          <label class="form-label" for="c_firstName">İsim *</label>
-          <input type="text" id="c_firstName" class="form-control" placeholder="Örn: Ahmet" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="c_lastName">Soyisim *</label>
-          <input type="text" id="c_lastName" class="form-control" placeholder="Örn: Yılmaz" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="c_phone">Telefon *</label>
-          <input type="tel" id="c_phone" class="form-control" placeholder="Örn: 05551234567" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="c_email">E-posta</label>
-          <input type="email" id="c_email" class="form-control" maxlength="120" autocomplete="off" placeholder="Servis fişi göndermek için (isteğe bağlı)">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="c_reference">Referans (Tanıdık/Getiren)</label>
-          <input type="text" id="c_reference" class="form-control" placeholder="Örn: Mehmet Usta aracılığıyla">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="c_notes">Müşteri Özel Notu</label>
-          <textarea id="c_notes" class="form-control" placeholder="Örn: Ödemelerini aksatmaz." rows="2"></textarea>
-        </div>
-        <div class="form-actions" style="margin-top: 20px;">
-          <button type="button" class="btn btn-secondary" onclick="closeNewCustomerModal()">İptal</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveCustomer">✓ Müşteriyi Kaydet</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ==================== MODAL: YENİ ARAÇ EKLE ==================== -->
-  <div class="modal-backdrop hidden" id="newVehicleModal">
-    <div class="modal-content" style="width: 540px;">
-      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 class="card-title" style="margin: 0; display: flex; align-items: center; gap: 8px;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent);"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-          Yeni Araç Kaydı
-        </h2>
-        <button type="button" class="btn btn-secondary btn-mini modal-close-btn" onclick="closeNewVehicleModal()">&times;</button>
-      </div>
-      <form id="newVehicleModalForm" onsubmit="handleVehicleSubmit(event)">
-        <div class="form-group customer-combobox-group" style="position: relative;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label class="form-label" for="v_customerSearchInput" style="margin: 0;">Müşteri Seç / Ara *</label>
-            <button type="button" class="btn btn-secondary btn-mini" onclick="openNewCustomerModal()">+ Yeni Müşteri Ekle</button>
-          </div>
-          <input type="hidden" id="v_customerId" required>
-          <div class="combobox-wrapper">
-            <svg class="combobox-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input type="text" id="v_customerSearchInput" class="form-control combobox-input" placeholder="Müşteri adı veya telefon yazarak ara (ör: Ahmet, 0532)..." autocomplete="off" oninput="handleCustomerComboboxSearch(this.value, 'v_customerId', 'v_customerDropdownResults', 'v_customerSearchInput', 'v_customerClearBtn', 'v_customerSelectedBadge')" onfocus="handleCustomerComboboxSearch(this.value, 'v_customerId', 'v_customerDropdownResults', 'v_customerSearchInput', 'v_customerClearBtn', 'v_customerSelectedBadge')">
-            <button type="button" class="combobox-clear-btn hidden" id="v_customerClearBtn" onclick="clearCustomerCombobox('v_customerId', 'v_customerSearchInput', 'v_customerClearBtn', 'v_customerSelectedBadge')" title="Temizle">&times;</button>
-          </div>
-          <div class="selected-customer-banner hidden" id="v_customerSelectedBadge"></div>
-          <div class="combobox-results-panel hidden" id="v_customerDropdownResults"></div>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="v_brand_select">Marka *</label>
-          <select id="v_brand_select" class="form-control" required onchange="handleBrandSelectChange('v_brand_select', 'v_custom_brand_group', 'v_custom_brand')">
-            <option value="">-- Marka Seçin --</option>
-            <option value="Volkswagen">Volkswagen</option>
-            <option value="Fiat">Fiat</option>
-            <option value="Toyota">Toyota</option>
-            <option value="Opel">Opel</option>
-            <option value="Renault">Renault</option>
-            <option value="Ford">Ford</option>
-            <option value="Hyundai">Hyundai</option>
-            <option value="BMW">BMW</option>
-            <option value="Mercedes-Benz">Mercedes-Benz</option>
-            <option value="Peugeot">Peugeot</option>
-            <option value="Citroën">Citroën</option>
-            <option value="Honda">Honda</option>
-            <option value="Nissan">Nissan</option>
-            <option value="Seat">Seat</option>
-            <option value="Skoda">Skoda</option>
-            <option value="Audi">Audi</option>
-            <option value="Kia">Kia</option>
-            <option value="OTHER_CUSTOM">+ Farklı Marka Yaz (Diğer)</option>
-          </select>
-        </div>
-        <div class="form-group hidden" id="v_custom_brand_group">
-          <label class="form-label" for="v_custom_brand">Farklı Marka İsmi *</label>
-          <input type="text" id="v_custom_brand" class="form-control" placeholder="Örn: Mazda, Volvo, Dacia...">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="v_model">Model *</label>
-          <input type="text" id="v_model" class="form-control" placeholder="Örn: Golf 1.6 TDI" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="v_plate">Plaka *</label>
-          <input type="text" id="v_plate" class="form-control" placeholder="Örn: 34ABC123" required oninput="this.value = this.value.toUpperCase()">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="v_chassis">Şasi Numarası (VIN)</label>
-          <input type="text" id="v_chassis" class="form-control" placeholder="17 haneli şasi no" oninput="this.value = this.value.toUpperCase()">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="v_entryDate">Giriş Tarihi *</label>
-          <input type="date" id="v_entryDate" class="form-control" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="v_notes">Araç Özel Notu</label>
-          <textarea id="v_notes" class="form-control" placeholder="Örn: Sağ çamurluk çizik." rows="2"></textarea>
-        </div>
-        <div class="form-actions" style="margin-top: 20px;">
-          <button type="button" class="btn btn-secondary" onclick="closeNewVehicleModal()">İptal</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveVehicle">✓ Aracı Kaydet</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Javascript Yüklenmesi -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
   <script src="config.js"></script>
-  <script src="platform.js"></script>
-  <script src="app.js"></script>
-  <script src="mail.js"></script>
+  <script src="site.js"></script>
 </body>
 </html>

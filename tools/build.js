@@ -16,10 +16,11 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 const FILES = [
-  "index.html", "style.css", "config.js", "platform.js", "app.js", "mail.js", "favicon.svg", "favicon.ico",
+  "index.html", "site.css", "site.js", "panel.html", "admin.html", "admin.css", "admin.js",
+  "style.css", "config.js", "platform.js", "catalog.js", "app.js", "scanner.js", "mail.js", "favicon.svg", "favicon.ico",
   "manifest.webmanifest", "robots.txt", "sitemap.xml", "kullanim-kosullari.html", "gizlilik.html", "legal.css"
 ];
-const DIRS = ["car logo", "icons"];
+const DIRS = ["car logo", "icons", "vendor"];
 
 function fail(message) {
   console.error(`Derleme hatası: ${message}`);
@@ -40,11 +41,14 @@ const supabaseWs = supabaseUrl.replace("https://", "wss://");
 // asıl koruma connect-src (veri yalnızca kendi Supabase projemize gidebilir) ve otomatik kaçışlamadır.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  // Şasi no yazı tanıma (Tesseract) WebAssembly ve blob worker kullanır; dosyaları jsDelivr'den gelir.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
+  "worker-src 'self' blob: https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
-  `connect-src 'self' ${supabaseUrl} ${supabaseWs}`,
+  `connect-src 'self' ${supabaseUrl} ${supabaseWs} https://cdn.jsdelivr.net`,
+  "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'"
@@ -83,11 +87,15 @@ for (const file of LEGAL_FILES) {
     .replace(/<!-- TASLAK:[^>]*-->\r?\n?/g, ""));
 }
 
-const indexPath = path.join(DIST, "index.html");
+// CSP, uygulama sayfalarının her birine <meta> olarak eklenir.
 const marker = '<meta charset="UTF-8">';
-const html = fs.readFileSync(indexPath, "utf8");
-if (!html.includes(marker)) fail("index.html içinde <meta charset> bulunamadı.");
-fs.writeFileSync(indexPath, html.replace(marker, `${marker}\n  <meta http-equiv="Content-Security-Policy" content="${csp}">`));
+for (const page of ["index.html", "panel.html", "admin.html"]) {
+  const pagePath = path.join(DIST, page);
+  const html = fs.readFileSync(pagePath, "utf8");
+  if (!html.includes(marker)) fail(`${page} içinde <meta charset> bulunamadı.`);
+  fs.writeFileSync(pagePath, html.replace(marker, `${marker}
+  <meta http-equiv="Content-Security-Policy" content="${csp}">`));
+}
 
 const count = fs.readdirSync(DIST, { recursive: true }).length;
 console.log(`Yayın paketi hazır: dist/ (${count} öğe) · Supabase: ${supabaseUrl}`);

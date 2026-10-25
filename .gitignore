@@ -1,0 +1,8 @@
+node_modules/
+# Yayın paketi (npm run build)
+dist/
+.vercel
+.env*
+# Supabase CLI yerel durumu ve editör ayarları
+supabase/.temp/
+.claude/
